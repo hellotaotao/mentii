@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# Mentii
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mentii is a Mentimeter-style real-time audience interaction app built with React, Vite, TypeScript, Tailwind CSS, and Supabase.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Prerequisites
 
-## React Compiler
+- Node.js 20+
+- npm 10+
+- Docker Desktop
+- Supabase CLI
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Setup
 
-## Expanding the ESLint configuration
+1. Install dependencies:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+   ```bash
+   npm install
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+2. Start local Supabase:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+   ```bash
+   supabase start
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+3. Create a local environment file from the running Supabase instance:
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+   ```bash
+   eval "$(supabase status -o env | sed 's/^/export /')"
+   cat > .env.local <<EOF
+   VITE_SUPABASE_URL=${API_URL}
+   VITE_SUPABASE_ANON_KEY=${ANON_KEY}
+   SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+   EOF
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+4. Rebuild the database and regenerate types:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+   ```bash
+   npm run db:reset
+   npm run db:types
+   ```
+
+5. Seed demo data:
+
+   ```bash
+   npm run seed
+   ```
+
+6. Start the frontend:
+
+   ```bash
+   npm run dev
+   ```
+
+## Phase 0 verification
+
+```bash
+npm test
+npm run verify:rls
+npm run build
+npm run typecheck
+npm run lint
 ```

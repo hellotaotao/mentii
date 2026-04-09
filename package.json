@@ -8,7 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > src/types/database.ts",
+    "seed": "tsx scripts/seed.ts",
+    "verify:rls": "tsx scripts/verifyRls.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",
