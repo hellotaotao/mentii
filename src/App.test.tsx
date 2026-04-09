@@ -1,11 +1,54 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+const mockGetSession = vi.fn()
+const mockOnAuthStateChange = vi.fn()
+const mockSignInWithOtp = vi.fn()
+const mockUnsubscribe = vi.fn()
+
+vi.mock('./lib/supabase', () => ({
+  getSupabaseClient: () => ({
+    auth: {
+      getSession: mockGetSession,
+      onAuthStateChange: mockOnAuthStateChange,
+      signInWithOtp: mockSignInWithOtp,
+    },
+  }),
+}))
 
 function renderAt(path: string) {
   window.history.pushState({}, '', path)
   return render(<App />)
 }
+
+beforeEach(() => {
+  mockGetSession.mockReset()
+  mockOnAuthStateChange.mockReset()
+  mockSignInWithOtp.mockReset()
+  mockUnsubscribe.mockReset()
+
+  mockGetSession.mockResolvedValue({
+    data: {
+      session: null,
+    },
+    error: null,
+  })
+  mockOnAuthStateChange.mockReturnValue({
+    data: {
+      subscription: {
+        unsubscribe: mockUnsubscribe,
+      },
+    },
+  })
+  mockSignInWithOtp.mockResolvedValue({
+    data: {
+      session: null,
+      user: null,
+    },
+    error: null,
+  })
+})
 
 afterEach(() => {
   cleanup()
@@ -39,14 +82,29 @@ describe('App routing shell', () => {
     expect(screen.getByText(/phase 0 placeholder/i)).toBeInTheDocument()
   })
 
-  it('renders the host placeholder on host routes', () => {
+  it('prompts for host magic-link sign-in on host routes', async () => {
     renderAt('/host/new')
 
     expect(
-      screen.getByRole('heading', {
-        name: /create a new session/i,
+      await screen.findByRole('heading', {
+        name: /sign in to host sessions/i,
       }),
     ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/work email/i), {
+      target: { value: 'host@example.com' },
+    })
+    fireEvent.submit(screen.getByRole('button', { name: /send magic link/i }).closest('form')!)
+
+    await waitFor(() =>
+      expect(mockSignInWithOtp).toHaveBeenCalledWith({
+        email: 'host@example.com',
+        options: {
+          emailRedirectTo: window.location.href,
+        },
+      }),
+    )
+    expect(screen.getByText(/check your email for the sign-in link/i)).toBeInTheDocument()
   })
 
   it('renders the presenter placeholder on present routes', () => {
