@@ -42,6 +42,19 @@ function getPreviewTitle(question: EditorQuestion | null) {
   return question.title.trim() || 'Untitled question'
 }
 
+function reorderQuestionState(currentQuestions: EditorQuestion[], orderedQuestionIds: string[]) {
+  const questionById = new Map(currentQuestions.map((question) => [question.id, question]))
+  const orderedQuestions = orderedQuestionIds
+    .map((questionId) => questionById.get(questionId))
+    .filter((question): question is EditorQuestion => Boolean(question))
+  const remainingQuestions = currentQuestions.filter((question) => !orderedQuestionIds.includes(question.id))
+
+  return [...orderedQuestions, ...remainingQuestions].map((question, index) => ({
+    ...question,
+    orderIndex: index,
+  }))
+}
+
 function QuestionPreview({ question }: { question: EditorQuestion | null }) {
   if (!question) {
     return (
@@ -267,25 +280,31 @@ export default function HostConsole({ mode }: HostConsoleProps) {
     }
 
     const currentQuestions = editorData.questions
+    const remainingQuestions = currentQuestions.filter((question) => question.id !== questionId)
     const deletedQuestionIndex = currentQuestions.findIndex((question) => question.id === questionId)
-    const remainingQuestions = currentQuestions
-      .filter((question) => question.id !== questionId)
-      .map((question, index) => ({
-        ...question,
-        orderIndex: index,
-      }))
+    const fallbackQuestionId =
+      remainingQuestions[Math.max(0, deletedQuestionIndex - 1)]?.id ?? remainingQuestions[0]?.id ?? null
 
     try {
       await deleteQuestion(editorData.session.id, questionId)
-      setEditorData({
-        ...editorData,
-        questions: remainingQuestions,
+      setEditorData((currentEditorData) => {
+        if (!currentEditorData) {
+          return currentEditorData
+        }
+
+        return {
+          ...currentEditorData,
+          questions: currentEditorData.questions
+            .filter((question) => question.id !== questionId)
+            .map((question, index) => ({
+              ...question,
+              orderIndex: index,
+            })),
+        }
       })
 
       if (selectedQuestionId === questionId) {
-        const fallbackQuestion =
-          remainingQuestions[Math.max(0, deletedQuestionIndex - 1)] ?? remainingQuestions[0] ?? null
-        setSelectedQuestionId(fallbackQuestion?.id ?? null)
+        setSelectedQuestionId(fallbackQuestionId)
       }
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -297,31 +316,30 @@ export default function HostConsole({ mode }: HostConsoleProps) {
       return
     }
 
-    const questionById = new Map(editorData.questions.map((question) => [question.id, question]))
-    const reorderedQuestions = orderedQuestionIds
-      .map((questionId) => questionById.get(questionId))
-      .filter((question): question is EditorQuestion => Boolean(question))
-      .map((question, index) => ({
-        ...question,
-        orderIndex: index,
-      }))
+    const previousQuestionIds = editorData.questions.map((question) => question.id)
+    setEditorData((currentEditorData) => {
+      if (!currentEditorData) {
+        return currentEditorData
+      }
 
-    if (reorderedQuestions.length !== editorData.questions.length) {
-      return
-    }
-
-    const previousQuestions = editorData.questions
-    setEditorData({
-      ...editorData,
-      questions: reorderedQuestions,
+      return {
+        ...currentEditorData,
+        questions: reorderQuestionState(currentEditorData.questions, orderedQuestionIds),
+      }
     })
 
     try {
       await reorderQuestions(editorData.session.id, orderedQuestionIds)
     } catch (error) {
-      setEditorData({
-        ...editorData,
-        questions: previousQuestions,
+      setEditorData((currentEditorData) => {
+        if (!currentEditorData) {
+          return currentEditorData
+        }
+
+        return {
+          ...currentEditorData,
+          questions: reorderQuestionState(currentEditorData.questions, previousQuestionIds),
+        }
       })
       setErrorMessage(getErrorMessage(error))
     }

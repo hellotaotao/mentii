@@ -21,7 +21,7 @@ export type MultipleChoiceQuestionConfig = {
 }
 
 export type WordCloudQuestionConfig = {
-  allowMultipleSubmissions: true
+  allowMultipleSubmissions: boolean
 }
 
 export type GenericQuestionConfig = Record<string, Json | undefined>
@@ -98,7 +98,7 @@ function parseWordCloudConfig(config: Json): WordCloudQuestionConfig {
   }
 
   return {
-    allowMultipleSubmissions: config.allowMultipleSubmissions === false ? true : true,
+    allowMultipleSubmissions: config.allowMultipleSubmissions !== false,
   }
 }
 

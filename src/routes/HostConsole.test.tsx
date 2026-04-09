@@ -94,6 +94,15 @@ function renderHostConsole(path: string) {
   )
 }
 
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   mockCreateSessionWithDefaultQuestion.mockReset()
   mockGetSessionEditorData.mockReset()
@@ -249,5 +258,49 @@ describe('HostConsole', () => {
         name: /slide 3: when should the all-hands happen\?/i,
       }),
     ).not.toBeInTheDocument()
+  })
+
+  it('preserves a newly added slide when a delete finishes later', async () => {
+    const createQuestionRequest = createDeferredPromise<typeof thirdQuestion>()
+    const deleteQuestionRequest = createDeferredPromise<void>()
+
+    mockCreateQuestion.mockReturnValueOnce(createQuestionRequest.promise)
+    mockDeleteQuestion.mockReturnValueOnce(deleteQuestionRequest.promise)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /delete slide 1/i }))
+
+    createQuestionRequest.resolve(thirdQuestion)
+
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: when should the all-hands happen\?/i,
+      }),
+    ).toBeInTheDocument()
+
+    deleteQuestionRequest.resolve()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', {
+          name: /slide 1: which roadmap theme matters most next quarter\?/i,
+        }),
+      ).not.toBeInTheDocument(),
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: /slide 1: which team should receive the next headcount\?/i,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: /slide 2: when should the all-hands happen\?/i,
+      }),
+    ).toBeInTheDocument()
   })
 })

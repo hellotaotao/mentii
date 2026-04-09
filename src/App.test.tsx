@@ -34,12 +34,16 @@ beforeEach(() => {
     },
     error: null,
   })
-  mockOnAuthStateChange.mockReturnValue({
-    data: {
-      subscription: {
-        unsubscribe: mockUnsubscribe,
+  mockOnAuthStateChange.mockImplementation((callback) => {
+    callback('INITIAL_SESSION', null)
+
+    return {
+      data: {
+        subscription: {
+          unsubscribe: mockUnsubscribe,
+        },
       },
-    },
+    }
   })
   mockSignInWithOtp.mockResolvedValue({
     data: {
@@ -90,6 +94,7 @@ describe('App routing shell', () => {
         name: /sign in to host sessions/i,
       }),
     ).toBeInTheDocument()
+    expect(mockGetSession).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText(/work email/i), {
       target: { value: 'host@example.com' },

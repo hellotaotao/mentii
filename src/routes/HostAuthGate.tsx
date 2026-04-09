@@ -9,14 +9,6 @@ export type HostAuthContext = {
   }
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-
-  return 'Something went wrong while checking host access.'
-}
-
 export default function HostAuthGate() {
   const supabase = useMemo(() => getSupabaseClient(), [])
   const [email, setEmail] = useState('')
@@ -27,35 +19,6 @@ export default function HostAuthGate() {
   const [user, setUser] = useState<HostAuthContext['user'] | null>(null)
 
   useEffect(() => {
-    let isActive = true
-
-    async function hydrateSession() {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-
-        if (!isActive) {
-          return
-        }
-
-        if (error) {
-          throw error
-        }
-
-        const sessionUser = data.session?.user ?? null
-        setUser(sessionUser ? { email: sessionUser.email, id: sessionUser.id } : null)
-        setStatus(sessionUser ? 'signed_in' : 'signed_out')
-      } catch (error) {
-        if (!isActive) {
-          return
-        }
-
-        setErrorMessage(getErrorMessage(error))
-        setStatus('signed_out')
-      }
-    }
-
-    void hydrateSession()
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -66,7 +29,6 @@ export default function HostAuthGate() {
     })
 
     return () => {
-      isActive = false
       subscription.unsubscribe()
     }
   }, [supabase])

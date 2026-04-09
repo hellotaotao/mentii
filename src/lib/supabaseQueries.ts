@@ -54,6 +54,31 @@ async function listQuestionRows(sessionId: string) {
   return data ?? []
 }
 
+function reorderQuestionRows(
+  questionRows: Awaited<ReturnType<typeof listQuestionRows>>,
+  orderedQuestionIds: string[],
+) {
+  const questionRowById = new Map(questionRows.map((question) => [question.id, question]))
+  const reorderedQuestionRows = orderedQuestionIds.map((questionId, index) => {
+    const questionRow = questionRowById.get(questionId)
+
+    if (!questionRow) {
+      throw new Error(`Question ${questionId} was not found in this session.`)
+    }
+
+    return {
+      ...questionRow,
+      order_index: index,
+    }
+  })
+
+  if (reorderedQuestionRows.length !== questionRows.length) {
+    throw new Error('Reorder payload does not match the current slide set.')
+  }
+
+  return reorderedQuestionRows
+}
+
 async function createQuestionRow(sessionId: string, type: QuestionType, orderIndex: number) {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
@@ -127,7 +152,12 @@ export async function createSessionWithDefaultQuestion(hostId: string) {
       const { error: cleanupError } = await supabase.from('sessions').delete().eq('id', sessionRow.id)
 
       if (cleanupError) {
-        throw new Error(cleanupError.message)
+        throw new Error(
+          `Cleanup failed (${cleanupError.message}) after original error: ${getErrorMessage(
+            error,
+            'Failed to create the default question.',
+          )}`,
+        )
       }
 
       throw new Error(getErrorMessage(error, 'Failed to create the default question.'))
@@ -185,19 +215,12 @@ export async function updateQuestion(questionId: string, input: UpdateQuestionIn
 
 export async function reorderQuestions(sessionId: string, questionIds: string[]) {
   const supabase = getSupabaseClient()
+  const questionRows = await listQuestionRows(sessionId)
+  const reorderedQuestionRows = reorderQuestionRows(questionRows, questionIds)
+  const { error } = await supabase.from('questions').upsert(reorderedQuestionRows)
 
-  for (const [index, questionId] of questionIds.entries()) {
-    const { error } = await supabase
-      .from('questions')
-      .update({
-        order_index: index,
-      })
-      .eq('id', questionId)
-      .eq('session_id', sessionId)
-
-    if (error) {
-      throw new Error(error.message)
-    }
+  if (error) {
+    throw new Error(error.message)
   }
 }
 

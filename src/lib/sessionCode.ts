@@ -19,3 +19,10 @@ export function generateSessionCode(random: () => number = Math.random) {
     .toString()
     .padStart(SESSION_CODE_LENGTH, '0')
 }
+
+export function buildJoinUrl(
+  code: string,
+  origin: string = typeof window === 'undefined' ? '' : window.location.origin,
+) {
+  return `${origin}/?code=${normalizeSessionCode(code)}`
+}
