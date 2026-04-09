@@ -17,7 +17,7 @@ describe('reorderQuestions', () => {
     mockFrom.mockReset()
   })
 
-  it('upserts the reordered question rows in a single write', async () => {
+  it('uses a two-phase reindex to avoid unique (session_id, order_index) collisions', async () => {
     const questionRows = [
       {
         config: { chartType: 'bar', options: ['A', 'B'] },
@@ -39,43 +39,35 @@ describe('reorderQuestions', () => {
       },
     ]
 
-    const orderMock = vi.fn().mockResolvedValue({
-      data: questionRows,
-      error: null,
-    })
-    const eqMock = vi.fn().mockReturnValue({
-      order: orderMock,
-    })
-    const selectMock = vi.fn().mockReturnValue({
-      eq: eqMock,
-    })
-    const upsertMock = vi.fn().mockResolvedValue({
-      error: null,
-    })
+    const eqAfterUpdateMock = vi.fn().mockResolvedValue({ error: null })
+    const updateMock = vi.fn().mockReturnValue({ eq: eqAfterUpdateMock })
+
+    const orderMock = vi.fn().mockResolvedValue({ data: questionRows, error: null })
+    const eqAfterSelectMock = vi.fn().mockReturnValue({ order: orderMock })
+    const selectMock = vi.fn().mockReturnValue({ eq: eqAfterSelectMock })
 
     mockFrom.mockImplementation((table: string) => {
       if (table !== 'questions') {
-        throw new Error(`Unexpected table: ${table}`)
+        throw new Error('Unexpected table: ' + table)
       }
-
-      return {
-        select: selectMock,
-        upsert: upsertMock,
-      }
+      return { select: selectMock, update: updateMock }
     })
 
     await reorderQuestions('session-1', ['question-2', 'question-1'])
 
-    expect(upsertMock).toHaveBeenCalledTimes(1)
-    expect(upsertMock).toHaveBeenCalledWith([
-      {
-        ...questionRows[1],
-        order_index: 0,
-      },
-      {
-        ...questionRows[0],
-        order_index: 1,
-      },
-    ])
+    // Phase 1: temporary high indexes to clear the unique constraint
+    expect(updateMock).toHaveBeenCalledWith({ order_index: 10000 })
+    expect(updateMock).toHaveBeenCalledWith({ order_index: 10001 })
+
+    // Phase 2: final indexes
+    expect(updateMock).toHaveBeenCalledWith({ order_index: 0 })
+    expect(updateMock).toHaveBeenCalledWith({ order_index: 1 })
+
+    // Two rows x two phases = four update calls
+    expect(updateMock).toHaveBeenCalledTimes(4)
+
+    // .eq() filters target the correct row ids
+    expect(eqAfterUpdateMock).toHaveBeenCalledWith('id', 'question-2')
+    expect(eqAfterUpdateMock).toHaveBeenCalledWith('id', 'question-1')
   })
 })

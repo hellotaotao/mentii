@@ -9,7 +9,8 @@ import {
   type QuestionType,
   type SessionEditorData,
 } from '../types/questions'
-import { generateSessionCode } from './sessionCode'
+import { getParticipantId } from './participantId'
+import { generateSessionCode, normalizeSessionCode } from './sessionCode'
 import { getSupabaseClient } from './supabase'
 
 const MAX_SESSION_CODE_ATTEMPTS = 10
@@ -29,6 +30,27 @@ function getErrorMessage(error: unknown, fallbackMessage: string) {
 async function getSessionRow(sessionId: string) {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Session not found.')
+  }
+
+  return data
+}
+
+async function getSessionRowByCode(sessionCode: string) {
+  const normalizedCode = normalizeSessionCode(sessionCode)
+
+  if (!normalizedCode) {
+    throw new Error('Session code is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from('sessions').select('*').eq('code', normalizedCode).single()
 
   if (error) {
     throw new Error(error.message)
@@ -178,6 +200,16 @@ export async function getSessionEditorData(sessionId: string): Promise<SessionEd
   }
 }
 
+export async function getSessionByCode(sessionCode: string): Promise<SessionEditorData> {
+  const session = await getSessionRowByCode(sessionCode)
+  const questionRows = await listQuestionRows(session.id)
+
+  return {
+    questions: questionRows.map(mapQuestionRow),
+    session,
+  }
+}
+
 export async function createQuestion(sessionId: string, type: QuestionType = 'multiple_choice') {
   const [session, questionRows] = await Promise.all([getSessionRow(sessionId), listQuestionRows(sessionId)])
   const questionRow = await createQuestionRow(sessionId, type, questionRows.length)
@@ -228,14 +260,43 @@ export async function getQuestionResults(question: EditorQuestion): Promise<Ques
   return parseQuestionResults(question, data ?? {})
 }
 
+export async function submitMultipleChoiceVote(questionId: string, optionIdx: number) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('votes').insert({
+    participant_id: getParticipantId(),
+    question_id: questionId,
+    value: {
+      optionIdx,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function reorderQuestions(sessionId: string, questionIds: string[]) {
   const supabase = getSupabaseClient()
   const questionRows = await listQuestionRows(sessionId)
   const reorderedQuestionRows = reorderQuestionRows(questionRows, questionIds)
-  const { error } = await supabase.from('questions').upsert(reorderedQuestionRows)
 
-  if (error) {
-    throw new Error(error.message)
+  // Two-phase reindex avoids unique (session_id, order_index) collisions when
+  // swapping existing rows.  Phase 1 moves every row to a temporary high index
+  // that cannot clash with any final index; phase 2 writes the real indexes.
+  const TEMP_OFFSET = 10_000
+  await Promise.all(
+    reorderedQuestionRows.map((row, i) =>
+      supabase.from('questions').update({ order_index: TEMP_OFFSET + i }).eq('id', row.id),
+    ),
+  )
+  const results = await Promise.all(
+    reorderedQuestionRows.map((row, i) =>
+      supabase.from('questions').update({ order_index: i }).eq('id', row.id),
+    ),
+  )
+  const firstError = results.find((r) => r.error)?.error
+  if (firstError) {
+    throw new Error(firstError.message)
   }
 }
 

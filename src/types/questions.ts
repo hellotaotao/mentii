@@ -5,7 +5,7 @@ export const QUESTION_TYPES = [
   'word_cloud',
   'open_ended',
   'scales',
-  'qa',
+  'q_and_a',
   'quiz',
 ] as const
 
@@ -188,12 +188,12 @@ export const questionRegistry = {
     label: 'Open Ended',
     type: 'open_ended',
   },
-  qa: {
+  q_and_a: {
     createDefaultConfig: () => ({}),
     defaultTitle: 'Collect audience questions',
     hostEditorReady: false,
     label: 'Q&A',
-    type: 'qa',
+    type: 'q_and_a',
   },
   quiz: {
     createDefaultConfig: () => ({}),
@@ -323,7 +323,7 @@ export function mapQuestionRow(row: Tables<'questions'>): EditorQuestion {
         type: 'word_cloud',
       }
     case 'open_ended':
-    case 'qa':
+    case 'q_and_a':
     case 'quiz':
     case 'scales':
       return {

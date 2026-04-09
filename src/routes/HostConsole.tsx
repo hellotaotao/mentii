@@ -1,5 +1,5 @@
 import { Copy, Eye, Play } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import SlideList from '../components/SlideList'
 import MultipleChoiceEditor from '../components/questions/MultipleChoice/Editor'
@@ -119,6 +119,9 @@ export default function HostConsole({ mode }: HostConsoleProps) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingQuestionRef = useRef<EditorQuestion | null>(null)
 
   const selectedQuestion = useMemo(
     () =>
@@ -244,7 +247,18 @@ export default function HostConsole({ mode }: HostConsoleProps) {
 
     const nextQuestion = transform(selectedQuestion)
     replaceQuestion(nextQuestion)
-    void persistQuestion(nextQuestion)
+
+    // Debounce persistence: accumulate rapid edits and flush after 300 ms idle.
+    pendingQuestionRef.current = nextQuestion
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current)
+    }
+    persistTimerRef.current = setTimeout(() => {
+      if (pendingQuestionRef.current) {
+        void persistQuestion(pendingQuestionRef.current)
+        pendingQuestionRef.current = null
+      }
+    }, 300)
   }
 
   async function handleAddSlide() {
