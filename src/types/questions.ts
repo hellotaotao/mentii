@@ -44,6 +44,43 @@ export type PlaceholderQuestion = QuestionBase<
 
 export type EditorQuestion = MultipleChoiceQuestion | WordCloudQuestion | PlaceholderQuestion
 
+export type MultipleChoiceResultTotal = {
+  count: number
+  label: string
+  optionIdx: number
+}
+
+export type MultipleChoiceResults = {
+  config: MultipleChoiceQuestionConfig
+  questionId: string
+  title: string
+  totals: MultipleChoiceResultTotal[]
+  type: 'multiple_choice'
+}
+
+export type WordCloudResultWord = {
+  count: number
+  word: string
+}
+
+export type WordCloudResults = {
+  config: WordCloudQuestionConfig
+  questionId: string
+  title: string
+  type: 'word_cloud'
+  words: WordCloudResultWord[]
+}
+
+export type QuestionResults =
+  | MultipleChoiceResults
+  | WordCloudResults
+  | {
+      config: GenericQuestionConfig
+      questionId: string
+      title: string
+      type: Exclude<QuestionType, 'multiple_choice' | 'word_cloud'>
+    }
+
 export type SessionEditorData = {
   questions: EditorQuestion[]
   session: Tables<'sessions'>
@@ -59,6 +96,10 @@ type QuestionRegistryEntry<TType extends QuestionType, TConfig extends Json> = {
 
 function isJsonRecord(value: Json): value is Record<string, Json | undefined> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isJsonArray(value: Json | undefined): value is Json[] {
+  return Array.isArray(value)
 }
 
 function isQuestionType(value: string): value is QuestionType {
@@ -79,6 +120,19 @@ function sanitizeOptions(value: Json | undefined) {
     .filter((option) => option.length > 0)
 
   return nextOptions.length >= 2 ? nextOptions : createDefaultMultipleChoiceConfig().options
+}
+
+function getNumericValue(value: Json | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsedValue = Number(value)
+    return Number.isFinite(parsedValue) ? parsedValue : 0
+  }
+
+  return 0
 }
 
 function parseMultipleChoiceConfig(config: Json): MultipleChoiceQuestionConfig {
@@ -184,6 +238,63 @@ export function isHostEditorReady(type: QuestionType) {
 
 export function isMultipleChoiceQuestion(question: EditorQuestion): question is MultipleChoiceQuestion {
   return question.type === 'multiple_choice'
+}
+
+export function parseQuestionResults(question: EditorQuestion, results: Json): QuestionResults {
+  if (question.type === 'multiple_choice') {
+    const totalsSource = isJsonRecord(results) && isJsonArray(results.totals) ? results.totals : []
+    const countsByOptionIndex = new Map<number, number>()
+
+    for (const total of totalsSource) {
+      if (!isJsonRecord(total)) {
+        continue
+      }
+
+      countsByOptionIndex.set(getNumericValue(total.optionIdx), getNumericValue(total.count))
+    }
+
+    return {
+      config: question.config,
+      questionId: question.id,
+      title: question.title,
+      totals: question.config.options.map((label, optionIdx) => ({
+        count: countsByOptionIndex.get(optionIdx) ?? 0,
+        label,
+        optionIdx,
+      })),
+      type: 'multiple_choice',
+    }
+  }
+
+  if (question.type === 'word_cloud') {
+    const wordsSource = isJsonRecord(results) && isJsonArray(results.words) ? results.words : []
+
+    return {
+      config: question.config,
+      questionId: question.id,
+      title: question.title,
+      type: 'word_cloud',
+      words: wordsSource.flatMap((wordEntry) => {
+        if (!isJsonRecord(wordEntry) || typeof wordEntry.word !== 'string') {
+          return []
+        }
+
+        return [
+          {
+            count: getNumericValue(wordEntry.count),
+            word: wordEntry.word,
+          },
+        ]
+      }),
+    }
+  }
+
+  return {
+    config: question.config,
+    questionId: question.id,
+    title: question.title,
+    type: question.type,
+  }
 }
 
 export function mapQuestionRow(row: Tables<'questions'>): EditorQuestion {

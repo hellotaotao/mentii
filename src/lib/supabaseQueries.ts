@@ -3,7 +3,9 @@ import {
   createDefaultQuestionConfig,
   createDefaultQuestionTitle,
   mapQuestionRow,
+  parseQuestionResults,
   type EditorQuestion,
+  type QuestionResults,
   type QuestionType,
   type SessionEditorData,
 } from '../types/questions'
@@ -211,6 +213,19 @@ export async function updateQuestion(questionId: string, input: UpdateQuestionIn
   if (error) {
     throw new Error(error.message)
   }
+}
+
+export async function getQuestionResults(question: EditorQuestion): Promise<QuestionResults> {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.rpc('get_question_results', {
+    target_question_id: question.id,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return parseQuestionResults(question, data ?? {})
 }
 
 export async function reorderQuestions(sessionId: string, questionIds: string[]) {

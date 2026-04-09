@@ -17,6 +17,25 @@ vi.mock('./lib/supabase', () => ({
   }),
 }))
 
+vi.mock('./routes/BigScreen', async () => {
+  const { useParams } = await import('react-router-dom')
+
+  function MockBigScreenRoute() {
+    const { sessionId = '' } = useParams()
+
+    return (
+      <main>
+        <h1>{`Session ${sessionId}`}</h1>
+        <p>Join code</p>
+      </main>
+    )
+  }
+
+  return {
+    default: MockBigScreenRoute,
+  }
+})
+
 function renderAt(path: string) {
   window.history.pushState({}, '', path)
   return render(<App />)
