@@ -33,10 +33,9 @@
 - `scripts/verifyRls.ts` — anonymous-access verification for vote privacy and aggregate RPC access.
 - `README.md` — local setup and Phase 0 workflow documentation.
 
-### Task 1: Create the isolated workspace and scaffold the Vite app
+### Task 1: Scaffold the Vite app in the repository root
 
 **Files:**
-- Create: `.worktrees/phase-0-foundation/`
 - Create: `package.json`
 - Create: `package-lock.json`
 - Create: `index.html`
@@ -49,58 +48,45 @@
 - Create: `src/index.css`
 - Test: `npm run build`
 
-- [ ] **Step 1: Create the dedicated worktree**
+- [ ] **Step 1: Scaffold the React + TypeScript app in the current repository**
 
 Run:
 
 ```bash
-git check-ignore -q .worktrees
-mkdir -p .worktrees
-git worktree add .worktrees/phase-0-foundation -b phase-0-foundation
+npm create vite@latest . -- --template react-ts --force
 ```
 
-Expected: `Preparing worktree (new branch 'phase-0-foundation')` followed by a checkout message.
+Expected: Vite creates `package.json`, `src/`, `public/`, and TypeScript config files in the repository root.
 
-- [ ] **Step 2: Scaffold the React + TypeScript app**
-
-Run:
-
-```bash
-cd .worktrees/phase-0-foundation
-npm create vite@latest . -- --template react-ts
-```
-
-Expected: Vite creates `package.json`, `src/`, `public/`, and TypeScript config files in the worktree.
-
-- [ ] **Step 3: Install runtime and developer dependencies**
+- [ ] **Step 2: Install runtime and developer dependencies**
 
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm install react-router-dom @supabase/supabase-js lucide-react recharts qrcode.react
 npm install -D tailwindcss @tailwindcss/vite tsx dotenv
 ```
 
 Expected: npm finishes without peer dependency errors and writes `package-lock.json`.
 
-- [ ] **Step 4: Verify the fresh scaffold still builds**
+- [ ] **Step 3: Verify the fresh scaffold still builds**
 
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm run build
 ```
 
 Expected: Vite prints a successful production build summary ending in `dist/index.html`.
 
-- [ ] **Step 5: Commit the scaffold baseline**
+- [ ] **Step 4: Commit the scaffold baseline**
 
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add package.json package-lock.json index.html tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts src
 git commit -m "chore: scaffold Mentii app" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -355,7 +341,7 @@ input {
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm run build
 ```
 
@@ -366,7 +352,7 @@ Expected: the build succeeds without `Cannot resolve module` or JSX type errors.
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add vite.config.ts src/main.tsx src/App.tsx src/index.css src/routes
 git commit -m "feat: add phase 0 route skeleton" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -697,7 +683,7 @@ with check (participant_id = public.requesting_participant_id());
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 supabase start
 supabase db reset
 ```
@@ -709,7 +695,7 @@ Expected: Supabase starts local services and prints a successful migration appli
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add supabase/config.toml supabase/migrations/20260409170000_phase_0_foundation.sql
 git commit -m "feat: add supabase phase 0 schema" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -731,7 +717,7 @@ Expected: one commit containing the schema, grants, RLS, trigger, and RPC.
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 supabase gen types typescript --local > src/types/database.ts
 ```
 
@@ -819,7 +805,7 @@ export function createSessionChannel(sessionId: string): RealtimeChannel {
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npx tsc -b --pretty false
 ```
 
@@ -830,7 +816,7 @@ Expected: TypeScript completes without unresolved import or `import.meta.env` er
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add src/types/database.ts src/lib/env.ts src/lib/participantId.ts src/lib/supabase.ts src/lib/realtime.ts
 git commit -m "feat: add typed supabase client helpers" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -1101,7 +1087,7 @@ npm run typecheck
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 eval "$(supabase status -o env | sed 's/^/export /')"
 cat > .env.local <<EOF
 VITE_SUPABASE_URL=${API_URL}
@@ -1119,7 +1105,7 @@ Expected: the seed script prints the demo code, and the verification script prin
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add package.json .env.local.example scripts/seed.ts scripts/verifyRls.ts README.md
 git commit -m "feat: add phase 0 seed and docs" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -1142,7 +1128,7 @@ Expected: one commit containing the local workflow, seed command, and privacy ve
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 supabase db reset
 npm run db:types
 ```
@@ -1154,7 +1140,7 @@ Expected: migrations replay from zero and `src/types/database.ts` regenerates cl
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm run seed
 ```
 
@@ -1165,7 +1151,7 @@ Expected: the script reports the seeded session code and two questions without t
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm run verify:rls
 npm run build
 npm run typecheck
@@ -1178,7 +1164,7 @@ Expected: the RLS script passes, the production bundle builds, and TypeScript ex
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 npm run dev
 ```
 
@@ -1189,7 +1175,7 @@ Expected: Vite serves the app locally and the placeholder routes load in the bro
 Run:
 
 ```bash
-cd .worktrees/phase-0-foundation
+cd /Users/tao/code/Mentii
 git add .
 git commit -m "chore: finish phase 0 foundation" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
