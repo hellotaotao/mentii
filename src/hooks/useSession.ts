@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { subscribeToSessionUpdates } from '../lib/realtime'
 import { getSessionEditorData } from '../lib/supabaseQueries'
 import type { Tables } from '../types/database'
@@ -24,6 +24,25 @@ export function useSession(sessionId: string) {
     sessionData: null,
     status: sessionId ? 'loading' : 'error',
   })
+
+  const mergeSessionUpdate = useCallback((nextSessionFields: Partial<Tables<'sessions'>>) => {
+    setState((currentState) => {
+      if (!currentState.sessionData) {
+        return currentState
+      }
+
+      return {
+        ...currentState,
+        sessionData: {
+          ...currentState.sessionData,
+          session: {
+            ...currentState.sessionData.session,
+            ...nextSessionFields,
+          },
+        },
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if (!sessionId) {
@@ -57,29 +76,14 @@ export function useSession(sessionId: string) {
       })
 
     const unsubscribe = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
-      setState((currentState) => {
-        if (!currentState.sessionData) {
-          return currentState
-        }
-
-        return {
-          ...currentState,
-          sessionData: {
-            ...currentState.sessionData,
-            session: {
-              ...currentState.sessionData.session,
-              ...nextSession,
-            },
-          },
-        }
-      })
+      mergeSessionUpdate(nextSession)
     })
 
     return () => {
       isActive = false
       unsubscribe()
     }
-  }, [sessionId])
+  }, [mergeSessionUpdate, sessionId])
 
   const currentQuestion = useMemo<EditorQuestion | null>(() => {
     const questions = state.sessionData?.questions ?? []
@@ -92,6 +96,7 @@ export function useSession(sessionId: string) {
     return {
       currentQuestion: null,
       errorMessage: 'Session not found.',
+      mergeSessionUpdate,
       questions: [],
       session: null,
       status: 'error' as const,
@@ -101,6 +106,7 @@ export function useSession(sessionId: string) {
   return {
     currentQuestion,
     errorMessage: state.errorMessage,
+    mergeSessionUpdate,
     questions: state.sessionData?.questions ?? [],
     session: state.sessionData?.session ?? null,
     status: state.status,

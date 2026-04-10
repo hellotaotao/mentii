@@ -4,6 +4,11 @@ import { getQuestionTypeLabel, type EditorQuestion } from '../types/questions'
 
 type SlideListProps = {
   onAdd: () => void
+  onAddOpenEnded: () => void
+  onAddQAndA: () => void
+  onAddQuiz: () => void
+  onAddScales: () => void
+  onAddWordCloud: () => void
   onDelete: (questionId: string) => void
   onReorder: (orderedQuestionIds: string[]) => void
   onSelect: (questionId: string) => void
@@ -13,6 +18,11 @@ type SlideListProps = {
 
 export default function SlideList({
   onAdd,
+  onAddOpenEnded,
+  onAddQAndA,
+  onAddQuiz,
+  onAddScales,
+  onAddWordCloud,
   onDelete,
   onReorder,
   onSelect,
@@ -50,14 +60,56 @@ export default function SlideList({
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Slides</p>
           <h2 className="mt-2 text-xl font-semibold">Question flow</h2>
         </div>
-        <button
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
-          onClick={onAdd}
-          type="button"
-        >
-          <Plus className="size-4" />
-          Add slide
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+            onClick={onAdd}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add slide
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            onClick={onAddScales}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add scales
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            onClick={onAddQAndA}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add Q&amp;A
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            onClick={onAddQuiz}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add quiz
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            onClick={onAddOpenEnded}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add open ended
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            onClick={onAddWordCloud}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add word cloud
+          </button>
+        </div>
       </div>
 
       <ol className="mt-6 flex-1 space-y-3">

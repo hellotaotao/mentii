@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -26,6 +27,20 @@ export default function MultipleChoiceBigScreen({
   results,
 }: MultipleChoiceBigScreenProps) {
   const totalResponses = results.totals.reduce((sum, total) => sum + total.count, 0)
+  const [chartWidth, setChartWidth] = useState(920)
+
+  useEffect(() => {
+    function updateChartWidth() {
+      setChartWidth(Math.min(920, Math.max(320, window.innerWidth - 96)))
+    }
+
+    updateChartWidth()
+    window.addEventListener('resize', updateChartWidth)
+
+    return () => {
+      window.removeEventListener('resize', updateChartWidth)
+    }
+  }, [])
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
@@ -37,7 +52,7 @@ export default function MultipleChoiceBigScreen({
 
       <div className="flex justify-center overflow-x-auto rounded-[32px] border border-white/10 bg-white/5 p-6">
         {question.config.chartType === 'bar' ? (
-          <BarChart data={results.totals} height={340} layout="vertical" width={920}>
+          <BarChart data={results.totals} height={340} layout="vertical" width={chartWidth}>
             <XAxis allowDecimals={false} stroke="#94a3b8" type="number" />
             <YAxis dataKey="label" stroke="#e2e8f0" type="category" width={180} />
             <Tooltip />
@@ -48,7 +63,7 @@ export default function MultipleChoiceBigScreen({
             </Bar>
           </BarChart>
         ) : (
-          <PieChart height={360} width={920}>
+          <PieChart height={360} width={chartWidth}>
             <Tooltip />
             <Pie
               animationDuration={350}

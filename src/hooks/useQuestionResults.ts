@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { subscribeToQuestionVotes } from '../lib/realtime'
+import { useEffect, useRef, useState } from 'react'
+import { subscribeToQuestionResultSignals } from '../lib/realtime'
 import { getQuestionResults } from '../lib/supabaseQueries'
 import type { EditorQuestion, QuestionResults } from '../types/questions'
 
@@ -23,6 +23,8 @@ export function useQuestionResults(question: EditorQuestion | null) {
     results: null,
     status: 'idle',
   })
+  const [refreshKey, setRefreshKey] = useState(0)
+  const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (!question) {
@@ -31,28 +33,37 @@ export function useQuestionResults(question: EditorQuestion | null) {
 
     const activeQuestion = question
     let isActive = true
+    let hasSubscriptionSynced = false
 
-    async function loadResults() {
+    async function loadResults(markSubscriptionSynced: boolean) {
+      const requestId = latestRequestIdRef.current + 1
+      latestRequestIdRef.current = requestId
+
       setState((currentState) => ({
         errorMessage: null,
         results: currentState.results?.questionId === activeQuestion.id ? currentState.results : null,
-        status: currentState.results?.questionId === activeQuestion.id ? 'ready' : 'loading',
+        status:
+          hasSubscriptionSynced && currentState.results?.questionId === activeQuestion.id ? 'ready' : 'loading',
       }))
 
       try {
         const nextResults = await getQuestionResults(activeQuestion)
 
-        if (!isActive) {
+        if (!isActive || latestRequestIdRef.current !== requestId) {
           return
+        }
+
+        if (markSubscriptionSynced) {
+          hasSubscriptionSynced = true
         }
 
         setState({
           errorMessage: null,
           results: nextResults,
-          status: 'ready',
+          status: hasSubscriptionSynced ? 'ready' : 'loading',
         })
       } catch (error) {
-        if (!isActive) {
+        if (!isActive || latestRequestIdRef.current !== requestId) {
           return
         }
 
@@ -64,24 +75,28 @@ export function useQuestionResults(question: EditorQuestion | null) {
       }
     }
 
-    void loadResults()
-    const unsubscribe = subscribeToQuestionVotes(activeQuestion.id, () => {
-      void loadResults()
+    void loadResults(false)
+    const unsubscribe = subscribeToQuestionResultSignals(activeQuestion.id, () => {
+      void loadResults(true)
     })
 
     return () => {
       isActive = false
       unsubscribe()
     }
-  }, [question])
+  }, [question, refreshKey])
 
   if (!question) {
     return {
       errorMessage: null,
+      refreshResults: () => setRefreshKey((currentKey) => currentKey + 1),
       results: null,
       status: 'idle' as const,
     }
   }
 
-  return state
+  return {
+    ...state,
+    refreshResults: () => setRefreshKey((currentKey) => currentKey + 1),
+  }
 }
