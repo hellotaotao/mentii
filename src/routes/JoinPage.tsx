@@ -1,15 +1,28 @@
 import type { FormEvent } from 'react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { formatSessionCode, normalizeSessionCode } from '../lib/sessionCode'
 
 export default function JoinPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [code, setCode] = useState('')
+  const queryCode = searchParams.get('code') ?? ''
+
+  useEffect(() => {
+    const normalizedQueryCode = normalizeSessionCode(queryCode)
+
+    if (!normalizedQueryCode) {
+      return
+    }
+
+    navigate(`/vote/${normalizedQueryCode}`, { replace: true })
+  }, [navigate, queryCode])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const normalizedCode = code.replace(/\s+/g, '')
+    const normalizedCode = normalizeSessionCode(code)
     if (!normalizedCode) return
 
     navigate(`/vote/${normalizedCode}`)
@@ -21,7 +34,7 @@ export default function JoinPage() {
         <div className="space-y-2 text-center">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Mentii</p>
           <h1 className="text-3xl font-semibold">Join a live session</h1>
-          <p className="text-sm text-slate-300">Phase 0 placeholder for the audience join page.</p>
+          <p className="text-sm text-slate-300">Enter the six-digit code shown on the big screen to vote.</p>
         </div>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -34,7 +47,7 @@ export default function JoinPage() {
             inputMode="numeric"
             maxLength={7}
             name="session-code"
-            onChange={(event) => setCode(event.target.value)}
+            onChange={(event) => setCode(formatSessionCode(event.target.value))}
             placeholder="4821 76"
             value={code}
           />
