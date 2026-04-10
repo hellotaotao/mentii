@@ -9,9 +9,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "tsc -b --pretty false",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > src/types/database.ts",
+    "deploy:cloud": "tsx scripts/deployCloud.ts",
     "seed": "tsx scripts/seed.ts",
     "verify:rls": "tsx scripts/verifyRls.ts"
   },
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
