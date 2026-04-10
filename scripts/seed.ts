@@ -47,13 +47,7 @@ async function main() {
       order_index: 0,
       config: {
         chartType: 'bar',
-        submissionMode: 'single',
-        options: [
-          { id: 'clarity', label: 'Clarity' },
-          { id: 'speed', label: 'Speed' },
-          { id: 'ownership', label: 'Ownership' },
-          { id: 'trust', label: 'Trust' },
-        ],
+        options: ['Clarity', 'Speed', 'Ownership', 'Trust'],
       },
     },
     {
@@ -62,7 +56,7 @@ async function main() {
       title: 'What word describes a great retro?',
       order_index: 1,
       config: {
-        submissionMode: 'multiple',
+        allowMultipleSubmissions: true,
       },
     },
   ]
@@ -83,7 +77,10 @@ async function main() {
 
   const { error: sessionUpdateError } = await supabase
     .from('sessions')
-    .update({ current_question_id: firstQuestion.id })
+    .update({
+      current_question_id: firstQuestion.id,
+      question_cycle_started_at: new Date().toISOString(),
+    })
     .eq('id', session.id)
 
   if (sessionUpdateError) {

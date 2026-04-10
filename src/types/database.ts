@@ -34,6 +34,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      q_and_a_entries: {
+        Row: {
+          answered_at: string | null
+          created_at: string
+          id: string
+          participant_id: string
+          question_id: string
+          text: string
+        }
+        Insert: {
+          answered_at?: string | null
+          created_at?: string
+          id?: string
+          participant_id: string
+          question_id: string
+          text: string
+        }
+        Update: {
+          answered_at?: string | null
+          created_at?: string
+          id?: string
+          participant_id?: string
+          question_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_and_a_entries_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      q_and_a_entry_upvotes: {
+        Row: {
+          created_at: string
+          entry_id: string
+          participant_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          participant_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          participant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "q_and_a_entry_upvotes_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "q_and_a_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      question_result_signals: {
+        Row: {
+          question_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          question_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          question_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_result_signals_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: true
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       questions: {
         Row: {
           config: Json
@@ -79,6 +166,7 @@ export type Database = {
           current_question_id: string | null
           host_id: string | null
           id: string
+          question_cycle_started_at: string
           results_hidden: boolean
           state: string
           voting_open: boolean
@@ -89,6 +177,7 @@ export type Database = {
           current_question_id?: string | null
           host_id?: string | null
           id?: string
+          question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string
           voting_open?: boolean
@@ -99,6 +188,7 @@ export type Database = {
           current_question_id?: string | null
           host_id?: string | null
           id?: string
+          question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string
           voting_open?: boolean
@@ -154,7 +244,31 @@ export type Database = {
         Args: { target_question_id: string }
         Returns: Json
       }
+      reorder_questions: {
+        Args: { ordered_question_ids: string[]; target_session_id: string }
+        Returns: undefined
+      }
       requesting_participant_id: { Args: never; Returns: string }
+      reset_question_results: {
+        Args: { target_question_id: string }
+        Returns: undefined
+      }
+      reset_question_votes: {
+        Args: { target_question_id: string }
+        Returns: undefined
+      }
+      set_q_and_a_entry_answered: {
+        Args: { next_answered: boolean; target_entry_id: string }
+        Returns: undefined
+      }
+      submit_q_and_a_entry: {
+        Args: { entry_text: string; target_question_id: string }
+        Returns: string
+      }
+      upvote_q_and_a_entry: {
+        Args: { target_entry_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

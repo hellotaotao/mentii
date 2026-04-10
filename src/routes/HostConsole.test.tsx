@@ -9,6 +9,7 @@ const {
   mockDeleteQuestion,
   mockGetSessionEditorData,
   mockReorderQuestions,
+  mockUpdateSession,
   mockUpdateQuestion,
 } = vi.hoisted(() => ({
   mockCreateQuestion: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockDeleteQuestion: vi.fn(),
   mockGetSessionEditorData: vi.fn(),
   mockReorderQuestions: vi.fn(),
+  mockUpdateSession: vi.fn(),
   mockUpdateQuestion: vi.fn(),
 }))
 
@@ -25,6 +27,7 @@ vi.mock('../lib/supabaseQueries', () => ({
   deleteQuestion: mockDeleteQuestion,
   getSessionEditorData: mockGetSessionEditorData,
   reorderQuestions: mockReorderQuestions,
+  updateSession: mockUpdateSession,
   updateQuestion: mockUpdateQuestion,
 }))
 
@@ -38,6 +41,7 @@ const session = {
   current_question_id: 'question-1',
   host_id: 'host-1',
   id: 'session-1',
+  question_cycle_started_at: '2026-04-09T00:00:00.000Z',
   results_hidden: false,
   state: 'draft',
   voting_open: true,
@@ -79,6 +83,62 @@ const thirdQuestion = {
   type: 'multiple_choice' as const,
 }
 
+const wordCloudQuestion = {
+  config: {
+    allowMultipleSubmissions: true,
+  },
+  id: 'question-4',
+  orderIndex: 3,
+  sessionId: 'session-1',
+  title: 'Share one word for this sprint',
+  type: 'word_cloud' as const,
+}
+
+const openEndedQuestion = {
+  config: {
+    maxLength: 280,
+  },
+  id: 'question-5',
+  orderIndex: 4,
+  sessionId: 'session-1',
+  title: 'What should we improve next sprint?',
+  type: 'open_ended' as const,
+}
+
+const scalesQuestion = {
+  config: {
+    leftLabel: 'Not useful',
+    rightLabel: 'Very useful',
+  },
+  id: 'question-6',
+  orderIndex: 5,
+  sessionId: 'session-1',
+  title: 'How useful was this session?',
+  type: 'scales' as const,
+}
+
+const qAndAQuestion = {
+  config: {},
+  id: 'question-7',
+  orderIndex: 6,
+  sessionId: 'session-1',
+  title: 'What would you like us to clarify?',
+  type: 'q_and_a' as const,
+}
+
+const quizQuestion = {
+  config: {
+    correctOptionIdx: 1,
+    durationSeconds: 30,
+    options: ['Discovery', 'Reliability', 'Adoption'],
+  },
+  id: 'question-8',
+  orderIndex: 7,
+  sessionId: 'session-1',
+  title: 'Which outcome matters most for launch readiness?',
+  type: 'quiz' as const,
+}
+
 function renderHostConsole(path: string) {
   window.history.pushState({}, '', path)
 
@@ -110,6 +170,7 @@ beforeEach(() => {
   mockUpdateQuestion.mockReset()
   mockDeleteQuestion.mockReset()
   mockReorderQuestions.mockReset()
+  mockUpdateSession.mockReset()
 
   mockCreateSessionWithDefaultQuestion.mockResolvedValue({
     sessionId: session.id,
@@ -122,6 +183,7 @@ beforeEach(() => {
   mockUpdateQuestion.mockResolvedValue(undefined)
   mockDeleteQuestion.mockResolvedValue(undefined)
   mockReorderQuestions.mockResolvedValue(undefined)
+  mockUpdateSession.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -302,5 +364,310 @@ describe('HostConsole', () => {
         name: /slide 2: when should the all-hands happen\?/i,
       }),
     ).toBeInTheDocument()
+  })
+
+  it('starts the presentation and advances slides from the host console', async () => {
+    const openWindowMock = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /present/i }))
+
+    await waitFor(() =>
+      expect(mockUpdateSession).toHaveBeenCalledWith('session-1', {
+        current_question_id: 'question-1',
+        question_cycle_started_at: expect.any(String),
+        results_hidden: false,
+        state: 'live',
+        voting_open: true,
+      }),
+    )
+    expect(openWindowMock).toHaveBeenCalledWith('/present/session-1', '_blank', 'noopener,noreferrer')
+
+    fireEvent.click(screen.getByRole('button', { name: /next slide/i }))
+
+    await waitFor(() =>
+      expect(mockUpdateSession).toHaveBeenLastCalledWith('session-1', {
+        current_question_id: 'question-2',
+        question_cycle_started_at: expect.any(String),
+        results_hidden: false,
+        voting_open: true,
+      }),
+    )
+    expect(screen.getByLabelText(/question title/i)).toHaveValue(secondQuestion.title)
+
+    openWindowMock.mockRestore()
+  })
+
+  it('adds and edits a word-cloud slide', async () => {
+    mockCreateQuestion.mockResolvedValueOnce(wordCloudQuestion)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add word cloud/i }))
+
+    await waitFor(() =>
+      expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'word_cloud'),
+    )
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: share one word for this sprint/i,
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/question title/i), {
+      target: { value: 'Describe today in one word' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenCalledWith('question-4', {
+        config: {
+          allowMultipleSubmissions: true,
+        },
+        title: 'Describe today in one word',
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
+    fireEvent.click(screen.getByLabelText(/allow repeated submissions/i))
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-4', {
+        config: {
+          allowMultipleSubmissions: false,
+        },
+        title: 'Describe today in one word',
+      }),
+    )
+  })
+
+  it('adds and edits an open-ended slide', async () => {
+    mockCreateQuestion.mockResolvedValueOnce(openEndedQuestion)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add open ended/i }))
+
+    await waitFor(() =>
+      expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'open_ended'),
+    )
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: what should we improve next sprint\?/i,
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/question title/i), {
+      target: { value: 'What would make the next sprint smoother?' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenCalledWith('question-5', {
+        config: {
+          maxLength: 280,
+        },
+        title: 'What would make the next sprint smoother?',
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
+    fireEvent.change(screen.getByLabelText(/maximum response length/i), {
+      target: { value: '400' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-5', {
+        config: {
+          maxLength: 400,
+        },
+        title: 'What would make the next sprint smoother?',
+      }),
+    )
+  })
+
+  it('adds and edits a scales slide', async () => {
+    mockCreateQuestion.mockResolvedValueOnce(scalesQuestion)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add scales/i }))
+
+    await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'scales'))
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: how useful was this session\?/i,
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/question title/i), {
+      target: { value: 'How clear was the strategy update?' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenCalledWith('question-6', {
+        config: {
+          leftLabel: 'Not useful',
+          rightLabel: 'Very useful',
+        },
+        title: 'How clear was the strategy update?',
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
+    fireEvent.change(screen.getByLabelText(/left label/i), {
+      target: { value: 'Still fuzzy' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-6', {
+        config: {
+          leftLabel: 'Still fuzzy',
+          rightLabel: 'Very useful',
+        },
+        title: 'How clear was the strategy update?',
+      }),
+    )
+
+    fireEvent.change(screen.getByLabelText(/right label/i), {
+      target: { value: 'Crystal clear' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-6', {
+        config: {
+          leftLabel: 'Still fuzzy',
+          rightLabel: 'Crystal clear',
+        },
+        title: 'How clear was the strategy update?',
+      }),
+    )
+  })
+
+  it('adds and edits a q&a slide', async () => {
+    mockCreateQuestion.mockResolvedValueOnce(qAndAQuestion)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add q&a/i }))
+
+    await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'q_and_a'))
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: what would you like us to clarify\?/i,
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/question title/i), {
+      target: { value: 'What questions should we tackle first?' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenCalledWith('question-7', {
+        config: {},
+        title: 'What questions should we tackle first?',
+      }),
+    )
+  })
+
+  it('adds and edits a quiz slide', async () => {
+    mockCreateQuestion.mockResolvedValueOnce(quizQuestion)
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /add quiz/i }))
+
+    await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'quiz'))
+    expect(
+      await screen.findByRole('button', {
+        name: /slide 3: which outcome matters most for launch readiness\?/i,
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/question title/i), {
+      target: { value: 'Which outcome matters most this release?' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenCalledWith('question-8', {
+        config: {
+          correctOptionIdx: 1,
+          durationSeconds: 30,
+          options: ['Discovery', 'Reliability', 'Adoption'],
+        },
+        title: 'Which outcome matters most this release?',
+      }),
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: /option 1/i }), {
+      target: { value: 'Quality' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-8', {
+        config: {
+          correctOptionIdx: 1,
+          durationSeconds: 30,
+          options: ['Quality', 'Reliability', 'Adoption'],
+        },
+        title: 'Which outcome matters most this release?',
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
+    fireEvent.change(screen.getByLabelText(/correct answer/i), {
+      target: { value: '2' },
+    })
+    fireEvent.change(screen.getByLabelText(/countdown seconds/i), {
+      target: { value: '45' },
+    })
+
+    await waitFor(() =>
+      expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-8', {
+        config: {
+          correctOptionIdx: 2,
+          durationSeconds: 45,
+          options: ['Quality', 'Reliability', 'Adoption'],
+        },
+        title: 'Which outcome matters most this release?',
+      }),
+    )
+  })
+
+  it('opens preview and copies the join link', async () => {
+    const openWindowMock = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    })
+
+    renderHostConsole('/host/session-1')
+
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /preview/i }))
+    expect(openWindowMock).toHaveBeenCalledWith('/present/session-1', '_blank', 'noopener,noreferrer')
+
+    fireEvent.click(screen.getByRole('button', { name: /share/i }))
+
+    await waitFor(() =>
+      expect(writeTextMock).toHaveBeenCalledWith(expect.stringMatching(/\/\?code=482176$/)),
+    )
+
+    openWindowMock.mockRestore()
   })
 })

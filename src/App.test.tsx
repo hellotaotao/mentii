@@ -36,6 +36,25 @@ vi.mock('./routes/BigScreen', async () => {
   }
 })
 
+vi.mock('./routes/VotePage', async () => {
+  const { useParams } = await import('react-router-dom')
+
+  function MockVotePageRoute() {
+    const { sessionCode = '' } = useParams()
+
+    return (
+      <main data-testid="vote-route">
+        <h1>{`Session ${sessionCode}`}</h1>
+        <p>Audience route</p>
+      </main>
+    )
+  }
+
+  return {
+    default: MockVotePageRoute,
+  }
+})
+
 function renderAt(path: string) {
   window.history.pushState({}, '', path)
   return render(<App />)
@@ -102,7 +121,7 @@ describe('App routing shell', () => {
         name: /session 482176/i,
       }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/phase 0 placeholder/i)).toBeInTheDocument()
+    expect(screen.getByText(/audience route/i)).toBeInTheDocument()
   })
 
   it('prompts for host magic-link sign-in on host routes', async () => {
@@ -152,6 +171,16 @@ describe('App routing shell', () => {
 
     expect(
       screen.getByRole('heading', {
+        name: /session 482176/i,
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('bootstraps the audience route from a code query parameter', async () => {
+    renderAt('/?code=482176')
+
+    expect(
+      await screen.findByRole('heading', {
         name: /session 482176/i,
       }),
     ).toBeInTheDocument()

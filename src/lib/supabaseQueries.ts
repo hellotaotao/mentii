@@ -19,6 +19,11 @@ export type UpdateQuestionInput = Pick<TablesUpdate<'questions'>, 'title'> & {
   config: EditorQuestion['config']
 }
 
+export type UpdateSessionInput = Pick<
+  TablesUpdate<'sessions'>,
+  'current_question_id' | 'question_cycle_started_at' | 'results_hidden' | 'state' | 'voting_open'
+>
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (error instanceof Error && error.message) {
     return error.message
@@ -76,31 +81,6 @@ async function listQuestionRows(sessionId: string) {
   }
 
   return data ?? []
-}
-
-function reorderQuestionRows(
-  questionRows: Awaited<ReturnType<typeof listQuestionRows>>,
-  orderedQuestionIds: string[],
-) {
-  const questionRowById = new Map(questionRows.map((question) => [question.id, question]))
-  const reorderedQuestionRows = orderedQuestionIds.map((questionId, index) => {
-    const questionRow = questionRowById.get(questionId)
-
-    if (!questionRow) {
-      throw new Error(`Question ${questionId} was not found in this session.`)
-    }
-
-    return {
-      ...questionRow,
-      order_index: index,
-    }
-  })
-
-  if (reorderedQuestionRows.length !== questionRows.length) {
-    throw new Error('Reorder payload does not match the current slide set.')
-  }
-
-  return reorderedQuestionRows
 }
 
 async function createQuestionRow(sessionId: string, type: QuestionType, orderIndex: number) {
@@ -275,28 +255,158 @@ export async function submitMultipleChoiceVote(questionId: string, optionIdx: nu
   }
 }
 
+export async function submitWordCloudVote(questionId: string, word: string) {
+  const trimmedWord = word.trim()
+
+  if (!trimmedWord) {
+    throw new Error('A word is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('votes').insert({
+    participant_id: getParticipantId(),
+    question_id: questionId,
+    value: {
+      word: trimmedWord,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function submitOpenEndedVote(questionId: string, text: string) {
+  const trimmedText = text.trim()
+
+  if (!trimmedText) {
+    throw new Error('A response is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('votes').insert({
+    participant_id: getParticipantId(),
+    question_id: questionId,
+    value: {
+      text: trimmedText,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function submitScalesVote(questionId: string, rating: number) {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new Error('A rating between 1 and 5 is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('votes').insert({
+    participant_id: getParticipantId(),
+    question_id: questionId,
+    value: {
+      rating,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function submitQAndAEntry(questionId: string, text: string) {
+  const trimmedText = text.trim()
+
+  if (!trimmedText) {
+    throw new Error('A question is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.rpc('submit_q_and_a_entry', {
+    entry_text: trimmedText,
+    target_question_id: questionId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function upvoteQAndAEntry(entryId: string) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.rpc('upvote_q_and_a_entry', {
+    target_entry_id: entryId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function setQAndAEntryAnswered(entryId: string, nextAnswered: boolean) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.rpc('set_q_and_a_entry_answered', {
+    next_answered: nextAnswered,
+    target_entry_id: entryId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function submitQuizVote(questionId: string, optionIdx: number) {
+  if (!Number.isInteger(optionIdx) || optionIdx < 0) {
+    throw new Error('A quiz answer is required.')
+  }
+
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('votes').insert({
+    participant_id: getParticipantId(),
+    question_id: questionId,
+    value: {
+      optionIdx,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function updateSession(sessionId: string, input: UpdateSessionInput) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from('sessions').update(input).eq('id', sessionId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function resetQuestionResults(questionId: string) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.rpc('reset_question_results', {
+    target_question_id: questionId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function reorderQuestions(sessionId: string, questionIds: string[]) {
   const supabase = getSupabaseClient()
-  const questionRows = await listQuestionRows(sessionId)
-  const reorderedQuestionRows = reorderQuestionRows(questionRows, questionIds)
+  const { error } = await supabase.rpc('reorder_questions', {
+    ordered_question_ids: questionIds,
+    target_session_id: sessionId,
+  })
 
-  // Two-phase reindex avoids unique (session_id, order_index) collisions when
-  // swapping existing rows.  Phase 1 moves every row to a temporary high index
-  // that cannot clash with any final index; phase 2 writes the real indexes.
-  const TEMP_OFFSET = 10_000
-  await Promise.all(
-    reorderedQuestionRows.map((row, i) =>
-      supabase.from('questions').update({ order_index: TEMP_OFFSET + i }).eq('id', row.id),
-    ),
-  )
-  const results = await Promise.all(
-    reorderedQuestionRows.map((row, i) =>
-      supabase.from('questions').update({ order_index: i }).eq('id', row.id),
-    ),
-  )
-  const firstError = results.find((r) => r.error)?.error
-  if (firstError) {
-    throw new Error(firstError.message)
+  if (error) {
+    throw new Error(error.message)
   }
 }
 
