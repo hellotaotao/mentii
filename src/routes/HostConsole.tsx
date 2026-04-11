@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight, Copy, Eye, Play } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Eye, Play } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import SlideList from '../components/SlideList'
 import MultipleChoiceEditor from '../components/questions/MultipleChoice/Editor'
 import OpenEndedEditor from '../components/questions/OpenEnded/Editor'
@@ -11,10 +11,10 @@ import WordCloudEditor from '../components/questions/WordCloud/Editor'
 import type { HostPropertyTab } from '../components/questions/MultipleChoice/editorTabs'
 import {
   createQuestion,
-  createSessionWithDefaultQuestion,
   deleteQuestion,
   getSessionEditorData,
   reorderQuestions,
+  updateRoomName,
   updateSession,
   updateQuestion,
 } from '../lib/supabaseQueries'
@@ -31,18 +31,13 @@ import {
   type QuestionType,
   type SessionEditorData,
 } from '../types/questions'
-import type { HostAuthContext } from './HostAuthGate'
-
-type HostConsoleProps = {
-  mode: 'new' | 'existing'
-}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
     return error.message
   }
 
-  return 'Something went wrong while updating this session.'
+  return 'Something went wrong while updating this room.'
 }
 
 function getPreviewTitle(question: EditorQuestion | null) {
@@ -55,6 +50,16 @@ function getPreviewTitle(question: EditorQuestion | null) {
 
 function createQuestionCycleStartedAt() {
   return new Date().toISOString()
+}
+
+function normalizeRoomName(roomName: string) {
+  const trimmedRoomName = roomName.trim()
+
+  if (trimmedRoomName.length === 0) {
+    return 'Untitled room'
+  }
+
+  return trimmedRoomName.slice(0, 120)
 }
 
 function reorderQuestionState(currentQuestions: EditorQuestion[], orderedQuestionIds: string[]) {
@@ -296,20 +301,21 @@ function QuestionPreview({ question }: { question: EditorQuestion | null }) {
   )
 }
 
-export default function HostConsole({ mode }: HostConsoleProps) {
-  const { sessionId = '' } = useParams()
+export default function HostConsole() {
   const navigate = useNavigate()
-  const hostContext = useOutletContext<HostAuthContext | undefined>()
-  const hostUserId = hostContext?.user.id ?? null
+  const { sessionId = '' } = useParams()
   const [activeTab, setActiveTab] = useState<HostPropertyTab>('content')
   const [editorData, setEditorData] = useState<SessionEditorData | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [roomNameDraft, setRoomNameDraft] = useState('')
+  const [roomNameSaveState, setRoomNameSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const [shareState, setShareState] = useState<'copied' | 'idle'>('idle')
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const roomNamePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingQuestionRef = useRef<EditorQuestion | null>(null)
 
   const selectedQuestion = useMemo(
@@ -351,38 +357,9 @@ export default function HostConsole({ mode }: HostConsoleProps) {
     async function bootstrapEditor() {
       setErrorMessage(null)
 
-      if (mode === 'new') {
-        if (!hostUserId) {
-          setStatus('error')
-          setErrorMessage('Host authentication is required to create a session.')
-          return
-        }
-
-        setStatus('loading')
-
-        try {
-          const { sessionId: nextSessionId } = await createSessionWithDefaultQuestion(hostUserId)
-
-          if (!isActive) {
-            return
-          }
-
-          navigate(`/host/${nextSessionId}`, { replace: true })
-        } catch (error) {
-          if (!isActive) {
-            return
-          }
-
-          setStatus('error')
-          setErrorMessage(getErrorMessage(error))
-        }
-
-        return
-      }
-
       if (!sessionId) {
         setStatus('error')
-        setErrorMessage('Session not found.')
+        setErrorMessage('Room not found.')
         return
       }
 
@@ -396,6 +373,8 @@ export default function HostConsole({ mode }: HostConsoleProps) {
         }
 
         setEditorData(nextEditorData)
+        setRoomNameDraft(nextEditorData.session.name)
+        setRoomNameSaveState('idle')
         setSelectedQuestionId((currentSelectedQuestionId) => {
           if (
             currentSelectedQuestionId &&
@@ -421,8 +400,16 @@ export default function HostConsole({ mode }: HostConsoleProps) {
 
     return () => {
       isActive = false
+
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current)
+      }
+
+      if (roomNamePersistTimerRef.current) {
+        clearTimeout(roomNamePersistTimerRef.current)
+      }
     }
-  }, [hostUserId, mode, navigate, sessionId])
+  }, [sessionId])
 
   function replaceQuestion(nextQuestion: EditorQuestion) {
     setEditorData((currentEditorData) => {
@@ -511,6 +498,59 @@ export default function HostConsole({ mode }: HostConsoleProps) {
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
+  }
+
+  async function persistRoomName(nextRoomName: string) {
+    if (!editorData) {
+      return
+    }
+
+    if (editorData.session.name === nextRoomName) {
+      setRoomNameSaveState('saved')
+      return
+    }
+
+    setRoomNameSaveState('saving')
+
+    try {
+      await updateRoomName(editorData.session.id, nextRoomName)
+      mergeSessionUpdate({ name: nextRoomName })
+      setRoomNameSaveState('saved')
+    } catch (error) {
+      setRoomNameSaveState('error')
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  function queueRoomNameSave(nextRoomNameInput: string) {
+    const normalizedRoomName = normalizeRoomName(nextRoomNameInput)
+
+    setRoomNameDraft(nextRoomNameInput)
+    setRoomNameSaveState('idle')
+
+    if (roomNamePersistTimerRef.current) {
+      clearTimeout(roomNamePersistTimerRef.current)
+    }
+
+    roomNamePersistTimerRef.current = setTimeout(() => {
+      setRoomNameDraft(normalizedRoomName)
+      void persistRoomName(normalizedRoomName)
+    }, 350)
+  }
+
+  function flushRoomNameSave() {
+    const normalizedRoomName = normalizeRoomName(roomNameDraft)
+
+    if (roomNamePersistTimerRef.current) {
+      clearTimeout(roomNamePersistTimerRef.current)
+      roomNamePersistTimerRef.current = null
+    }
+
+    if (roomNameDraft !== normalizedRoomName) {
+      setRoomNameDraft(normalizedRoomName)
+    }
+
+    void persistRoomName(normalizedRoomName)
   }
 
   async function persistQuestion(nextQuestion: EditorQuestion) {
@@ -659,14 +699,8 @@ export default function HostConsole({ mode }: HostConsoleProps) {
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
         <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
           <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
-          <h1 className="mt-3 text-3xl font-semibold">
-            {mode === 'new' ? 'Creating your session…' : 'Loading host console…'}
-          </h1>
-          <p className="mt-4 text-sm text-slate-300">
-            {mode === 'new'
-              ? 'Generating a session code and your first multiple-choice slide.'
-              : 'Fetching the ordered slides and draft settings from Supabase.'}
-          </p>
+          <h1 className="mt-3 text-3xl font-semibold">Loading host console…</h1>
+          <p className="mt-4 text-sm text-slate-300">Fetching the room slides and draft settings from Supabase.</p>
         </section>
       </main>
     )
@@ -688,15 +722,57 @@ export default function HostConsole({ mode }: HostConsoleProps) {
     <main className="min-h-screen bg-slate-950 text-white">
       <header className="border-b border-white/10 bg-slate-950/95">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+          <div className="space-y-3">
+            <button
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              onClick={() => navigate('/host')}
+              type="button"
+            >
+              <ArrowLeft className="size-4" />
+              Back to rooms
+            </button>
+
             <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
-            <h1 className="mt-2 text-3xl font-semibold">Host console</h1>
-            <div className="mt-3 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
-              <span>Join code</span>
-              <span className="text-base font-semibold tracking-[0.35em]">
-                {formatSessionCode(editorData.session.code)}
-              </span>
+            <h1 className="text-3xl font-semibold">Room editor</h1>
+
+            <label className="block max-w-md space-y-2" htmlFor="room-name-input">
+              <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Room name</span>
+              <input
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-base text-white outline-none transition focus:border-cyan-300"
+                id="room-name-input"
+                onBlur={flushRoomNameSave}
+                onChange={(event) => queueRoomNameSave(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                value={roomNameDraft}
+              />
+            </label>
+
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-200">
+              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                <span>Code</span>
+                <span className="text-base font-semibold tracking-[0.35em]">
+                  {formatSessionCode(editorData.session.code)}
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                <span className="text-slate-300">Room ID</span>
+                <span className="font-mono text-xs text-slate-100">{editorData.session.id}</span>
+              </div>
             </div>
+
+            <p className="text-xs text-slate-400">
+              {roomNameSaveState === 'saving'
+                ? 'Saving room name…'
+                : roomNameSaveState === 'saved'
+                  ? 'Room name saved.'
+                  : roomNameSaveState === 'error'
+                    ? 'Could not save room name.'
+                    : 'Room name can be changed anytime.'}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -734,23 +810,8 @@ export default function HostConsole({ mode }: HostConsoleProps) {
 
       <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[280px_minmax(0,1fr)_360px]">
         <SlideList
-          onAdd={() => {
-            void handleAddSlide('multiple_choice')
-          }}
-          onAddOpenEnded={() => {
-            void handleAddSlide('open_ended')
-          }}
-          onAddQAndA={() => {
-            void handleAddSlide('q_and_a')
-          }}
-          onAddQuiz={() => {
-            void handleAddSlide('quiz')
-          }}
-          onAddScales={() => {
-            void handleAddSlide('scales')
-          }}
-          onAddWordCloud={() => {
-            void handleAddSlide('word_cloud')
+          onAddSlide={(type) => {
+            void handleAddSlide(type)
           }}
           onDelete={handleDeleteSlide}
           onReorder={handleReorderSlides}

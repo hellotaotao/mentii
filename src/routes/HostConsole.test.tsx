@@ -5,28 +5,28 @@ import HostConsole from './HostConsole'
 
 const {
   mockCreateQuestion,
-  mockCreateSessionWithDefaultQuestion,
   mockDeleteQuestion,
   mockGetSessionEditorData,
   mockReorderQuestions,
+  mockUpdateRoomName,
   mockUpdateSession,
   mockUpdateQuestion,
 } = vi.hoisted(() => ({
   mockCreateQuestion: vi.fn(),
-  mockCreateSessionWithDefaultQuestion: vi.fn(),
   mockDeleteQuestion: vi.fn(),
   mockGetSessionEditorData: vi.fn(),
   mockReorderQuestions: vi.fn(),
+  mockUpdateRoomName: vi.fn(),
   mockUpdateSession: vi.fn(),
   mockUpdateQuestion: vi.fn(),
 }))
 
 vi.mock('../lib/supabaseQueries', () => ({
   createQuestion: mockCreateQuestion,
-  createSessionWithDefaultQuestion: mockCreateSessionWithDefaultQuestion,
   deleteQuestion: mockDeleteQuestion,
   getSessionEditorData: mockGetSessionEditorData,
   reorderQuestions: mockReorderQuestions,
+  updateRoomName: mockUpdateRoomName,
   updateSession: mockUpdateSession,
   updateQuestion: mockUpdateQuestion,
 }))
@@ -41,6 +41,7 @@ const session = {
   current_question_id: 'question-1',
   host_id: 'host-1',
   id: 'session-1',
+  name: 'Weekly standup',
   question_cycle_started_at: '2026-04-09T00:00:00.000Z',
   results_hidden: false,
   state: 'draft',
@@ -146,8 +147,8 @@ function renderHostConsole(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route element={<Outlet context={{ user: hostUser }} />}>
-          <Route path="/host/new" element={<HostConsole mode="new" />} />
-          <Route path="/host/:sessionId" element={<HostConsole mode="existing" />} />
+          <Route path="/host" element={<p data-testid="host-dashboard-route">Host dashboard route</p>} />
+          <Route path="/host/:sessionId" element={<HostConsole />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -164,17 +165,14 @@ function createDeferredPromise<T>() {
 }
 
 beforeEach(() => {
-  mockCreateSessionWithDefaultQuestion.mockReset()
   mockGetSessionEditorData.mockReset()
   mockCreateQuestion.mockReset()
   mockUpdateQuestion.mockReset()
   mockDeleteQuestion.mockReset()
   mockReorderQuestions.mockReset()
+  mockUpdateRoomName.mockReset()
   mockUpdateSession.mockReset()
 
-  mockCreateSessionWithDefaultQuestion.mockResolvedValue({
-    sessionId: session.id,
-  })
   mockGetSessionEditorData.mockResolvedValue({
     questions: [firstQuestion, secondQuestion],
     session,
@@ -183,6 +181,7 @@ beforeEach(() => {
   mockUpdateQuestion.mockResolvedValue(undefined)
   mockDeleteQuestion.mockResolvedValue(undefined)
   mockReorderQuestions.mockResolvedValue(undefined)
+  mockUpdateRoomName.mockResolvedValue(undefined)
   mockUpdateSession.mockResolvedValue(undefined)
 })
 
@@ -192,10 +191,33 @@ afterEach(() => {
 })
 
 describe('HostConsole', () => {
-  it('creates a session from /host/new and loads the default multiple-choice slide', async () => {
-    renderHostConsole('/host/new')
+  it('navigates back to the host dashboard', async () => {
+    renderHostConsole('/host/session-1')
 
-    await waitFor(() => expect(mockCreateSessionWithDefaultQuestion).toHaveBeenCalledWith('host-1'))
+    await screen.findByLabelText(/question title/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /back to rooms/i }))
+
+    expect(await screen.findByTestId('host-dashboard-route')).toBeInTheDocument()
+  })
+
+  it('renames the room and persists the new name', async () => {
+    renderHostConsole('/host/session-1')
+
+    const roomNameInput = await screen.findByLabelText(/room name/i)
+    fireEvent.change(roomNameInput, {
+      target: { value: 'Quarterly planning' },
+    })
+    fireEvent.blur(roomNameInput)
+
+    await waitFor(() =>
+      expect(mockUpdateRoomName).toHaveBeenCalledWith('session-1', 'Quarterly planning'),
+    )
+  })
+
+  it('loads the host console for an existing session', async () => {
+    renderHostConsole('/host/session-1')
+
     expect(await screen.findByLabelText(/question title/i)).toHaveValue(firstQuestion.title)
     expect(mockGetSessionEditorData).toHaveBeenCalledWith('session-1')
     expect(screen.getByText('4821 76')).toBeInTheDocument()
@@ -275,6 +297,7 @@ describe('HostConsole', () => {
     await screen.findByLabelText(/question title/i)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add multiple choice slide/i }))
 
     await waitFor(() =>
       expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'multiple_choice'),
@@ -334,6 +357,7 @@ describe('HostConsole', () => {
     await screen.findByLabelText(/question title/i)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add multiple choice slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /delete slide 1/i }))
 
     createQuestionRequest.resolve(thirdQuestion)
@@ -408,7 +432,8 @@ describe('HostConsole', () => {
 
     await screen.findByLabelText(/question title/i)
 
-    fireEvent.click(screen.getByRole('button', { name: /add word cloud/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add word cloud slide/i }))
 
     await waitFor(() =>
       expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'word_cloud'),
@@ -452,7 +477,8 @@ describe('HostConsole', () => {
 
     await screen.findByLabelText(/question title/i)
 
-    fireEvent.click(screen.getByRole('button', { name: /add open ended/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add open ended slide/i }))
 
     await waitFor(() =>
       expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'open_ended'),
@@ -498,7 +524,8 @@ describe('HostConsole', () => {
 
     await screen.findByLabelText(/question title/i)
 
-    fireEvent.click(screen.getByRole('button', { name: /add scales/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add scales slide/i }))
 
     await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'scales'))
     expect(
@@ -558,7 +585,8 @@ describe('HostConsole', () => {
 
     await screen.findByLabelText(/question title/i)
 
-    fireEvent.click(screen.getByRole('button', { name: /add q&a/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add q&a slide/i }))
 
     await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'q_and_a'))
     expect(
@@ -586,7 +614,8 @@ describe('HostConsole', () => {
 
     await screen.findByLabelText(/question title/i)
 
-    fireEvent.click(screen.getByRole('button', { name: /add quiz/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add quiz slide/i }))
 
     await waitFor(() => expect(mockCreateQuestion).toHaveBeenCalledWith('session-1', 'quiz'))
     expect(

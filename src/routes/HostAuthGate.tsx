@@ -43,10 +43,12 @@ export default function HostAuthGate() {
     setErrorMessage(null)
     setIsSubmitting(true)
 
+    const hostDashboardUrl = new URL('/host', window.location.origin).toString()
+
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: window.location.href,
+        emailRedirectTo: hostDashboardUrl,
       },
     })
 
@@ -67,7 +69,7 @@ export default function HostAuthGate() {
         <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
           <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
           <h1 className="mt-3 text-3xl font-semibold">Checking host access…</h1>
-          <p className="mt-4 text-sm text-slate-300">Restoring your host session and preparing the editor.</p>
+          <p className="mt-4 text-sm text-slate-300">Restoring your host rooms and preparing the dashboard.</p>
         </section>
       </main>
     )
@@ -81,9 +83,9 @@ export default function HostAuthGate() {
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
         <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
-        <h1 className="mt-3 text-3xl font-semibold">Sign in to host sessions</h1>
+        <h1 className="mt-3 text-3xl font-semibold">Sign in to host rooms</h1>
         <p className="mt-4 text-sm text-slate-300">
-          Use a Supabase magic link. Audience voting stays anonymous, but host editing needs an authenticated owner.
+          Use a Supabase magic link. Audience voting stays anonymous, but hosting rooms needs an authenticated owner.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>

@@ -125,11 +125,11 @@ describe('App routing shell', () => {
   })
 
   it('prompts for host magic-link sign-in on host routes', async () => {
-    renderAt('/host/new')
+    renderAt('/host')
 
     expect(
       await screen.findByRole('heading', {
-        name: /sign in to host sessions/i,
+        name: /sign in to host rooms/i,
       }),
     ).toBeInTheDocument()
     expect(mockGetSession).not.toHaveBeenCalled()
@@ -143,7 +143,7 @@ describe('App routing shell', () => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith({
         email: 'host@example.com',
         options: {
-          emailRedirectTo: window.location.href,
+          emailRedirectTo: `${window.location.origin}/host`,
         },
       }),
     )

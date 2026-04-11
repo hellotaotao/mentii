@@ -1,4 +1,4 @@
-import type { TablesUpdate } from '../types/database'
+import type { Tables, TablesUpdate } from '../types/database'
 import {
   createDefaultQuestionConfig,
   createDefaultQuestionTitle,
@@ -24,6 +24,51 @@ export type UpdateSessionInput = Pick<
   'current_question_id' | 'question_cycle_started_at' | 'results_hidden' | 'state' | 'voting_open'
 >
 
+export type HostRoomSummary = Pick<Tables<'sessions'>, 'code' | 'created_at' | 'id' | 'name' | 'state'>
+export type HostSessionSummary = HostRoomSummary
+
+type LegacyHostRoomSummary = Omit<HostRoomSummary, 'name'>
+
+function isMissingRoomNameColumn(error: { code?: string | null; message?: string } | null) {
+  if (!error) {
+    return false
+  }
+
+  const normalizedMessage = error.message?.toLowerCase() ?? ''
+
+  return (
+    error.code === '42703' ||
+    (normalizedMessage.includes('sessions.name') && normalizedMessage.includes('does not exist'))
+  )
+}
+
+function normalizeRoomName(roomName: string) {
+  const trimmedRoomName = roomName.trim()
+
+  if (trimmedRoomName.length === 0) {
+    return 'Untitled room'
+  }
+
+  return trimmedRoomName.slice(0, 120)
+}
+
+function buildFallbackRoomName(roomCode: string) {
+  return `Room ${roomCode}`
+}
+
+function normalizeSessionRoomName(session: Tables<'sessions'>): Tables<'sessions'> {
+  const sessionWithOptionalName = session as Tables<'sessions'> & { name?: string | null }
+  const roomName =
+    typeof sessionWithOptionalName.name === 'string' && sessionWithOptionalName.name.trim().length > 0
+      ? sessionWithOptionalName.name.trim()
+      : buildFallbackRoomName(sessionWithOptionalName.code)
+
+  return {
+    ...sessionWithOptionalName,
+    name: roomName,
+  }
+}
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   if (error instanceof Error && error.message) {
     return error.message
@@ -44,7 +89,7 @@ async function getSessionRow(sessionId: string) {
     throw new Error('Session not found.')
   }
 
-  return data
+  return normalizeSessionRoomName(data as Tables<'sessions'>)
 }
 
 async function getSessionRowByCode(sessionCode: string) {
@@ -65,7 +110,7 @@ async function getSessionRowByCode(sessionCode: string) {
     throw new Error('Session not found.')
   }
 
-  return data
+  return normalizeSessionRoomName(data as Tables<'sessions'>)
 }
 
 async function listQuestionRows(sessionId: string) {
@@ -108,21 +153,43 @@ async function createQuestionRow(sessionId: string, type: QuestionType, orderInd
   return data
 }
 
-export async function createSessionWithDefaultQuestion(hostId: string) {
+export async function createRoomWithDefaultQuestion(hostId: string, roomName: string) {
   const supabase = getSupabaseClient()
+  const normalizedRoomName = normalizeRoomName(roomName)
 
   for (let attempt = 0; attempt < MAX_SESSION_CODE_ATTEMPTS; attempt += 1) {
-    const { data: sessionRow, error: sessionError } = await supabase
+    const baseSessionPayload = {
+      code: generateSessionCode(),
+      host_id: hostId,
+      results_hidden: false,
+      state: 'draft' as const,
+      voting_open: true,
+    }
+
+    let { data: sessionRow, error: sessionError } = await supabase
       .from('sessions')
       .insert({
-        code: generateSessionCode(),
-        host_id: hostId,
-        results_hidden: false,
-        state: 'draft',
-        voting_open: true,
+        ...baseSessionPayload,
+        name: normalizedRoomName,
       })
       .select('*')
       .single()
+
+    if (sessionError && isMissingRoomNameColumn(sessionError)) {
+      const legacyInsertResult = await supabase
+        .from('sessions')
+        .insert(baseSessionPayload)
+        .select('*')
+        .single()
+
+      sessionError = legacyInsertResult.error
+      sessionRow = legacyInsertResult.data
+        ? ({
+            ...(legacyInsertResult.data as Tables<'sessions'>),
+            name: normalizedRoomName,
+          } as Tables<'sessions'>)
+        : null
+    }
 
     if (sessionError) {
       if (sessionError.code === '23505') {
@@ -150,7 +217,7 @@ export async function createSessionWithDefaultQuestion(hostId: string) {
       }
 
       return {
-        sessionId: sessionRow.id,
+        roomId: sessionRow.id,
       }
     } catch (error) {
       const { error: cleanupError } = await supabase.from('sessions').delete().eq('id', sessionRow.id)
@@ -169,6 +236,100 @@ export async function createSessionWithDefaultQuestion(hostId: string) {
   }
 
   throw new Error('Unable to generate a unique session code.')
+}
+
+export async function createSessionWithDefaultQuestion(hostId: string, roomName = 'Untitled room') {
+  const { roomId } = await createRoomWithDefaultQuestion(hostId, roomName)
+
+  return {
+    sessionId: roomId,
+  }
+}
+
+export async function listHostRooms(hostId: string): Promise<HostRoomSummary[]> {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, code, name, state, created_at')
+    .eq('host_id', hostId)
+    .order('created_at', { ascending: false })
+
+  if (error && isMissingRoomNameColumn(error)) {
+    const legacyResult = await supabase
+      .from('sessions')
+      .select('id, code, state, created_at')
+      .eq('host_id', hostId)
+      .order('created_at', { ascending: false })
+
+    if (legacyResult.error) {
+      throw new Error(legacyResult.error.message)
+    }
+
+    return (legacyResult.data ?? []).map((room) => {
+      const legacyRoom = room as LegacyHostRoomSummary
+
+      return {
+        ...legacyRoom,
+        name: buildFallbackRoomName(legacyRoom.code),
+      }
+    })
+  }
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map((room) => {
+    const roomSummary = room as HostRoomSummary
+
+    return {
+      ...roomSummary,
+      name: normalizeRoomName(roomSummary.name),
+    }
+  })
+}
+
+export async function listHostSessions(hostId: string): Promise<HostSessionSummary[]> {
+  return listHostRooms(hostId)
+}
+
+export async function deleteHostRoom(roomId: string, hostId: string) {
+  const supabase = getSupabaseClient()
+  const { count, error } = await supabase
+    .from('sessions')
+    .delete({ count: 'exact' })
+    .eq('id', roomId)
+    .eq('host_id', hostId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!count) {
+    throw new Error('Room not found or you no longer have permission to delete it.')
+  }
+}
+
+export async function deleteHostSession(sessionId: string, hostId: string) {
+  await deleteHostRoom(sessionId, hostId)
+}
+
+export async function updateRoomName(roomId: string, roomName: string) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase
+    .from('sessions')
+    .update({
+      name: normalizeRoomName(roomName),
+    })
+    .eq('id', roomId)
+
+  if (error && isMissingRoomNameColumn(error)) {
+    return
+  }
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function getSessionEditorData(sessionId: string): Promise<SessionEditorData> {

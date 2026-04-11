@@ -166,6 +166,7 @@ export type Database = {
           current_question_id: string | null
           host_id: string | null
           id: string
+          name: string
           question_cycle_started_at: string
           results_hidden: boolean
           state: string
@@ -177,6 +178,7 @@ export type Database = {
           current_question_id?: string | null
           host_id?: string | null
           id?: string
+          name?: string
           question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string
@@ -188,6 +190,7 @@ export type Database = {
           current_question_id?: string | null
           host_id?: string | null
           id?: string
+          name?: string
           question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string

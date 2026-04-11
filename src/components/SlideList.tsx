@@ -1,14 +1,70 @@
-import { GripVertical, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
-import { getQuestionTypeLabel, type EditorQuestion } from '../types/questions'
+import {
+  BarChart3,
+  Cloud,
+  FileText,
+  GripVertical,
+  MessageSquare,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+  Trophy,
+} from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { getQuestionTypeLabel, type EditorQuestion, type QuestionType } from '../types/questions'
+
+const slideTypeOptions: Array<{
+  actionLabel: string
+  description: string
+  Icon: typeof BarChart3
+  title: string
+  type: QuestionType
+}> = [
+  {
+    actionLabel: 'Add multiple choice slide',
+    description: 'Collect votes with predefined options.',
+    Icon: BarChart3,
+    title: 'Multiple choice',
+    type: 'multiple_choice',
+  },
+  {
+    actionLabel: 'Add scales slide',
+    description: 'Capture sentiment on a 1-5 scale.',
+    Icon: SlidersHorizontal,
+    title: 'Scales',
+    type: 'scales',
+  },
+  {
+    actionLabel: 'Add Q&A slide',
+    description: 'Let the audience submit and upvote questions.',
+    Icon: MessageSquare,
+    title: 'Q&A',
+    type: 'q_and_a',
+  },
+  {
+    actionLabel: 'Add quiz slide',
+    description: 'Run a timed question with a correct answer.',
+    Icon: Trophy,
+    title: 'Quiz',
+    type: 'quiz',
+  },
+  {
+    actionLabel: 'Add open ended slide',
+    description: 'Collect free-text responses from everyone.',
+    Icon: FileText,
+    title: 'Open ended',
+    type: 'open_ended',
+  },
+  {
+    actionLabel: 'Add word cloud slide',
+    description: 'Visualize frequent words from the room.',
+    Icon: Cloud,
+    title: 'Word cloud',
+    type: 'word_cloud',
+  },
+]
 
 type SlideListProps = {
-  onAdd: () => void
-  onAddOpenEnded: () => void
-  onAddQAndA: () => void
-  onAddQuiz: () => void
-  onAddScales: () => void
-  onAddWordCloud: () => void
+  onAddSlide: (type: QuestionType) => void
   onDelete: (questionId: string) => void
   onReorder: (orderedQuestionIds: string[]) => void
   onSelect: (questionId: string) => void
@@ -17,19 +73,44 @@ type SlideListProps = {
 }
 
 export default function SlideList({
-  onAdd,
-  onAddOpenEnded,
-  onAddQAndA,
-  onAddQuiz,
-  onAddScales,
-  onAddWordCloud,
+  onAddSlide,
   onDelete,
   onReorder,
   onSelect,
   questions,
   selectedQuestionId,
 }: SlideListProps) {
+  const addMenuRef = useRef<HTMLDivElement | null>(null)
   const [draggedQuestionId, setDraggedQuestionId] = useState<string | null>(null)
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!isAddMenuOpen) {
+        return
+      }
+
+      if (addMenuRef.current?.contains(event.target as Node)) {
+        return
+      }
+
+      setIsAddMenuOpen(false)
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsAddMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isAddMenuOpen])
 
   function handleDrop(targetQuestionId: string) {
     if (!draggedQuestionId || draggedQuestionId === targetQuestionId) {
@@ -60,55 +141,44 @@ export default function SlideList({
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Slides</p>
           <h2 className="mt-2 text-xl font-semibold">Question flow</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        <div className="relative" ref={addMenuRef}>
           <button
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
-            onClick={onAdd}
+            onClick={() => setIsAddMenuOpen((currentState) => !currentState)}
             type="button"
           >
             <Plus className="size-4" />
             Add slide
           </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            onClick={onAddScales}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add scales
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            onClick={onAddQAndA}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add Q&amp;A
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            onClick={onAddQuiz}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add quiz
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            onClick={onAddOpenEnded}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add open ended
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            onClick={onAddWordCloud}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add word cloud
-          </button>
+
+          {isAddMenuOpen ? (
+            <div className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl">
+              <ul className="space-y-1">
+                {slideTypeOptions.map((option) => (
+                  <li key={option.type}>
+                    <button
+                      aria-label={option.actionLabel}
+                      className="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                      onClick={() => {
+                        onAddSlide(option.type)
+                        setIsAddMenuOpen(false)
+                      }}
+                      type="button"
+                    >
+                      <span className="mt-1 rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300">
+                        <option.Icon className="size-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-white">{option.title}</span>
+                        <span className="mt-1 block text-xs text-slate-400">{option.description}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -133,7 +203,6 @@ export default function SlideList({
 
                 <div className="min-w-0 flex-1">
                   <button
-                    aria-pressed={isSelected}
                     className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                       isSelected
                         ? 'border-cyan-300 bg-cyan-400/10 text-white'
