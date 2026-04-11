@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { formatSessionCode, normalizeSessionCode } from '../lib/sessionCode'
 
 export default function JoinPage() {
@@ -58,6 +58,13 @@ export default function JoinPage() {
             Join
           </button>
         </form>
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          Running the session?{' '}
+          <Link className="font-medium text-cyan-300 hover:text-cyan-200" to="/host/new">
+            Sign in as host
+          </Link>
+        </p>
       </section>
     </main>
   )
