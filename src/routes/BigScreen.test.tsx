@@ -479,7 +479,7 @@ describe('BigScreen', () => {
     await screen.findByText('5 total responses')
   })
 
-  it('reveals presenter controls and supports keyboard shortcuts', async () => {
+  it('reveals presenter controls on mouse movement and supports keyboard shortcuts', async () => {
     mockGetSessionEditorData.mockResolvedValueOnce({
       questions: [firstQuestion, secondQuestion],
       session: {
@@ -510,7 +510,7 @@ describe('BigScreen', () => {
 
     expect(screen.queryByRole('button', { name: /next slide/i })).not.toBeInTheDocument()
 
-    fireEvent.mouseMove(screen.getByTestId('big-screen-shell'), { clientY: 900 })
+    fireEvent.mouseMove(screen.getByTestId('big-screen-shell'), { clientY: 120 })
 
     expect(await screen.findByRole('button', { name: /next slide/i })).toBeInTheDocument()
 

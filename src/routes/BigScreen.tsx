@@ -285,10 +285,8 @@ export default function BigScreen() {
     <main
       className="flex min-h-screen flex-col bg-slate-950 text-white"
       data-testid="big-screen-shell"
-      onMouseMove={(event) => {
-        if (event.clientY >= window.innerHeight - 100) {
-          revealControls()
-        }
+      onMouseMove={() => {
+        revealControls()
       }}
     >
       <SessionCodeBar code={session.code} />
