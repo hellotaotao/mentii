@@ -3,6 +3,8 @@ import { subscribeToQuestionResultSignals } from '../lib/realtime'
 import { getQuestionResults } from '../lib/supabaseQueries'
 import type { EditorQuestion, QuestionResults } from '../types/questions'
 
+const RESULTS_REFRESH_DEBOUNCE_MS = 200
+
 type UseQuestionResultsState = {
   errorMessage: string | null
   results: QuestionResults | null
@@ -34,6 +36,7 @@ export function useQuestionResults(question: EditorQuestion | null) {
     const activeQuestion = question
     let isActive = true
     let hasSubscriptionSynced = false
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     async function loadResults(markSubscriptionSynced: boolean) {
       const requestId = latestRequestIdRef.current + 1
@@ -75,13 +78,34 @@ export function useQuestionResults(question: EditorQuestion | null) {
       }
     }
 
+    function scheduleLoadResults(markSubscriptionSynced: boolean) {
+      if (markSubscriptionSynced && !hasSubscriptionSynced) {
+        void loadResults(true)
+        return
+      }
+
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        void loadResults(markSubscriptionSynced)
+      }, RESULTS_REFRESH_DEBOUNCE_MS)
+    }
+
     void loadResults(false)
     const unsubscribe = subscribeToQuestionResultSignals(activeQuestion.id, () => {
-      void loadResults(true)
+      scheduleLoadResults(true)
     })
 
     return () => {
       isActive = false
+
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
       unsubscribe()
     }
   }, [question, refreshKey])

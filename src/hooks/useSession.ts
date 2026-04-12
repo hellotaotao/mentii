@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { subscribeToSessionUpdates } from '../lib/realtime'
+import { subscribeToSessionQuestionChanges, subscribeToSessionUpdates } from '../lib/realtime'
 import { getSessionEditorData } from '../lib/supabaseQueries'
 import type { Tables } from '../types/database'
 import type { EditorQuestion, SessionEditorData } from '../types/questions'
@@ -50,10 +50,24 @@ export function useSession(sessionId: string) {
     }
 
     let isActive = true
+    let latestLoadRequestId = 0
 
-    void getSessionEditorData(sessionId)
-      .then((sessionData) => {
-        if (!isActive) {
+    async function loadSessionData(mode: 'initial' | 'refresh') {
+      const requestId = latestLoadRequestId + 1
+      latestLoadRequestId = requestId
+
+      if (mode === 'initial') {
+        setState((currentState) => ({
+          ...currentState,
+          errorMessage: null,
+          status: 'loading',
+        }))
+      }
+
+      try {
+        const sessionData = await getSessionEditorData(sessionId)
+
+        if (!isActive || latestLoadRequestId !== requestId) {
           return
         }
 
@@ -62,26 +76,41 @@ export function useSession(sessionId: string) {
           sessionData,
           status: 'ready',
         })
-      })
-      .catch((error) => {
-        if (!isActive) {
+      } catch (error) {
+        if (!isActive || latestLoadRequestId !== requestId) {
           return
         }
 
-        setState({
-          errorMessage: getErrorMessage(error),
-          sessionData: null,
-          status: 'error',
-        })
-      })
+        setState((currentState) => {
+          if (mode === 'refresh' && currentState.sessionData) {
+            return {
+              ...currentState,
+              errorMessage: getErrorMessage(error),
+            }
+          }
 
-    const unsubscribe = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
+          return {
+            errorMessage: getErrorMessage(error),
+            sessionData: null,
+            status: 'error',
+          }
+        })
+      }
+    }
+
+    void loadSessionData('initial')
+
+    const unsubscribeSessionUpdates = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
       mergeSessionUpdate(nextSession)
+    })
+    const unsubscribeQuestionChanges = subscribeToSessionQuestionChanges(sessionId, () => {
+      void loadSessionData('refresh')
     })
 
     return () => {
       isActive = false
-      unsubscribe()
+      unsubscribeSessionUpdates()
+      unsubscribeQuestionChanges()
     }
   }, [mergeSessionUpdate, sessionId])
 

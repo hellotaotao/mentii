@@ -65,11 +65,11 @@ export default function HostAuthGate() {
 
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
+        <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
           <h1 className="mt-3 text-3xl font-semibold">Checking host access…</h1>
-          <p className="mt-4 text-sm text-slate-300">Restoring your host rooms and preparing the dashboard.</p>
+          <p className="mt-4 text-sm text-slate-600">Restoring your host rooms and preparing the dashboard.</p>
         </section>
       </main>
     )
@@ -80,11 +80,11 @@ export default function HostAuthGate() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-      <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
+      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
+        <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
         <h1 className="mt-3 text-3xl font-semibold">Sign in to host rooms</h1>
-        <p className="mt-4 text-sm text-slate-300">
+        <p className="mt-4 text-sm text-slate-600">
           Use a Supabase magic link. Audience voting stays anonymous, but hosting rooms needs an authenticated owner.
         </p>
 
@@ -92,7 +92,7 @@ export default function HostAuthGate() {
           <label className="block space-y-2" htmlFor="host-email">
             <span className="text-sm font-medium text-slate-200">Work email</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-fuchsia-300"
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-400"
               id="host-email"
               onChange={(event) => setEmail(event.target.value)}
               placeholder="host@example.com"
@@ -102,7 +102,7 @@ export default function HostAuthGate() {
           </label>
 
           <button
-            className="w-full rounded-2xl bg-fuchsia-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-fuchsia-300 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
             type="submit"
           >

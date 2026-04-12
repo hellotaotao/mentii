@@ -285,7 +285,6 @@ describe('HostConsole', () => {
 
     expect(
       screen.getByRole('heading', {
-        level: 2,
         name: /which team should get the next headcount\?/i,
       }),
     ).toBeInTheDocument()

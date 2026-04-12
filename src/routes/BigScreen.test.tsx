@@ -9,6 +9,7 @@ const {
   mockResetQuestionResults,
   mockSetQAndAEntryAnswered,
   mockSubscribeToQuestionResultSignals,
+  mockSubscribeToSessionQuestionChanges,
   mockSubscribeToSessionPresenceCount,
   mockSubscribeToSessionUpdates,
   mockUpdateSession,
@@ -18,6 +19,7 @@ const {
   mockResetQuestionResults: vi.fn(),
   mockSetQAndAEntryAnswered: vi.fn(),
   mockSubscribeToQuestionResultSignals: vi.fn(),
+  mockSubscribeToSessionQuestionChanges: vi.fn(),
   mockSubscribeToSessionPresenceCount: vi.fn(),
   mockSubscribeToSessionUpdates: vi.fn(),
   mockUpdateSession: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('../lib/supabaseQueries', () => ({
 
 vi.mock('../lib/realtime', () => ({
   subscribeToQuestionResultSignals: mockSubscribeToQuestionResultSignals,
+  subscribeToSessionQuestionChanges: mockSubscribeToSessionQuestionChanges,
   subscribeToSessionPresenceCount: mockSubscribeToSessionPresenceCount,
   subscribeToSessionUpdates: mockSubscribeToSessionUpdates,
 }))
@@ -316,6 +319,7 @@ beforeEach(() => {
   mockResetQuestionResults.mockReset()
   mockSetQAndAEntryAnswered.mockReset()
   mockSubscribeToQuestionResultSignals.mockReset()
+  mockSubscribeToSessionQuestionChanges.mockReset()
   mockSubscribeToSessionPresenceCount.mockReset()
   mockSubscribeToSessionUpdates.mockReset()
   mockUpdateSession.mockReset()
@@ -331,6 +335,7 @@ beforeEach(() => {
     callback()
     return vi.fn()
   })
+  mockSubscribeToSessionQuestionChanges.mockReturnValue(vi.fn())
   mockSubscribeToSessionPresenceCount.mockReturnValue(vi.fn())
   mockSubscribeToSessionUpdates.mockReturnValue(vi.fn())
   mockUpdateSession.mockResolvedValue(undefined)
@@ -347,7 +352,7 @@ describe('BigScreen', () => {
   it('renders the session code bar, current question title, and aggregated multiple-choice results', async () => {
     renderBigScreen()
 
-    expect(await screen.findByText(/go to www\.menti\.com/i)).toBeInTheDocument()
+    expect(await screen.findByText(/go to localhost/i)).toBeInTheDocument()
     expect(screen.getByText('4821 76')).toBeInTheDocument()
     expect(screen.getByTestId('session-qr-code')).toHaveTextContent('/?code=482176')
     expect(

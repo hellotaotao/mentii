@@ -293,7 +293,7 @@ export default function BigScreen() {
     >
       <SessionCodeBar code={session.code} />
 
-      <section className="flex flex-1 items-center justify-center px-6 py-10 sm:px-8">
+      <section className="flex flex-1 items-center justify-center px-6 py-10 pt-24 sm:px-8 sm:pt-28">
         {session.results_hidden ? (
           <div className="w-full max-w-2xl rounded-[32px] border border-white/10 bg-white/5 p-10 text-center">
             <h2 className="text-3xl font-semibold">{currentQuestion.title}</h2>

@@ -135,16 +135,16 @@ export default function SlideList({
   }
 
   return (
-    <aside className="flex min-h-[640px] flex-col rounded-3xl border border-white/10 bg-white/5 p-5">
+    <aside className="flex min-h-[640px] flex-col rounded-3xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Slides</p>
-          <h2 className="mt-2 text-xl font-semibold">Question flow</h2>
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Slides</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-900">Question flow</h2>
         </div>
 
         <div className="relative" ref={addMenuRef}>
           <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             onClick={() => setIsAddMenuOpen((currentState) => !currentState)}
             type="button"
           >
@@ -153,25 +153,25 @@ export default function SlideList({
           </button>
 
           {isAddMenuOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl">
+            <div className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
               <ul className="space-y-1">
                 {slideTypeOptions.map((option) => (
                   <li key={option.type}>
                     <button
                       aria-label={option.actionLabel}
-                      className="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/10"
+                      className="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
                       onClick={() => {
                         onAddSlide(option.type)
                         setIsAddMenuOpen(false)
                       }}
                       type="button"
                     >
-                      <span className="mt-1 rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300">
+                      <span className="mt-1 rounded-lg border border-slate-200 bg-slate-100 p-2 text-slate-500">
                         <option.Icon className="size-4" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-white">{option.title}</span>
-                        <span className="mt-1 block text-xs text-slate-400">{option.description}</span>
+                        <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{option.description}</span>
                       </span>
                     </button>
                   </li>
@@ -188,7 +188,7 @@ export default function SlideList({
 
           return (
             <li
-              className="rounded-2xl border border-white/10 bg-slate-950/70 p-3 shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm"
               draggable
               key={question.id}
               onDragEnd={() => setDraggedQuestionId(null)}
@@ -197,7 +197,7 @@ export default function SlideList({
               onDrop={() => handleDrop(question.id)}
             >
               <div className="flex items-start gap-3">
-                <div className="mt-1 rounded-full border border-white/10 bg-white/5 p-2 text-slate-400">
+                <div className="mt-1 rounded-full border border-slate-200 bg-white p-2 text-slate-500">
                   <GripVertical className="size-4" />
                 </div>
 
@@ -205,13 +205,13 @@ export default function SlideList({
                   <button
                     className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                       isSelected
-                        ? 'border-cyan-300 bg-cyan-400/10 text-white'
-                        : 'border-white/10 bg-white/5 text-slate-100 hover:border-white/20'
+                        ? 'border-cyan-300 bg-cyan-50 text-slate-900'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                     onClick={() => onSelect(question.id)}
                     type="button"
                   >
-                    <span className="block text-xs uppercase tracking-[0.25em] text-slate-400">
+                    <span className="block text-xs uppercase tracking-[0.25em] text-slate-500">
                       {getQuestionTypeLabel(question.type)}
                     </span>
                     <span className="mt-2 block truncate text-sm font-semibold">
@@ -222,7 +222,7 @@ export default function SlideList({
 
                 <button
                   aria-label={`Delete slide ${index + 1}`}
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:border-rose-300 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-rose-300 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={questions.length === 1}
                   onClick={() => onDelete(question.id)}
                   type="button"

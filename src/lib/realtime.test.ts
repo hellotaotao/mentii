@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getQuestionResultsChannelTopic, getSessionChannelTopic, getSessionPresenceChannelTopic } from './realtime'
+import {
+  getQuestionResultsChannelTopic,
+  getSessionChannelTopic,
+  getSessionPresenceChannelTopic,
+  getSessionQuestionsChannelTopic,
+} from './realtime'
 
 describe('getSessionChannelTopic', () => {
   it('creates a stable topic name for a session id', () => {
@@ -16,5 +21,11 @@ describe('getSessionPresenceChannelTopic', () => {
 describe('getQuestionResultsChannelTopic', () => {
   it('creates a stable results topic name for a question id', () => {
     expect(getQuestionResultsChannelTopic('question-7')).toBe('question:question-7:results')
+  })
+})
+
+describe('getSessionQuestionsChannelTopic', () => {
+  it('creates a stable topic name for a session question stream', () => {
+    expect(getSessionQuestionsChannelTopic('session-42')).toBe('session:session-42:questions')
   })
 })

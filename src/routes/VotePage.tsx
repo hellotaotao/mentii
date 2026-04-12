@@ -8,6 +8,7 @@ import ScalesPhone from '../components/questions/Scales/Phone'
 import WordCloudPhone from '../components/questions/WordCloud/Phone'
 import {
   subscribeToQuestionResultSignals,
+  subscribeToSessionQuestionChanges,
   subscribeToSessionUpdates,
   trackAudiencePresence,
 } from '../lib/realtime'
@@ -47,6 +48,8 @@ type QAndAResultsState = {
   status: 'error' | 'idle' | 'loading' | 'ready'
 }
 
+const RESULTS_REFRESH_DEBOUNCE_MS = 200
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
     return error.message
@@ -73,6 +76,7 @@ export default function VotePage() {
   const [qAndASuccessMessage, setQAndASuccessMessage] = useState<string | null>(null)
   const [submittedSingleResponseQuestionId, setSubmittedSingleResponseQuestionId] = useState<string | null>(null)
   const [wordCloudSuccessQuestionId, setWordCloudSuccessQuestionId] = useState<string | null>(null)
+  const [quizRemainingSeconds, setQuizRemainingSeconds] = useState<number | null>(null)
 
   useEffect(() => {
     if (!sessionCode) {
@@ -113,13 +117,44 @@ export default function VotePage() {
   useEffect(() => {
     const sessionId = state.sessionData?.session.id
 
-    if (!sessionId) {
+    if (!sessionId || !sessionCode) {
       return
+    }
+
+    let isActive = true
+    let latestRefreshRequestId = 0
+
+    async function refreshSessionData() {
+      const requestId = latestRefreshRequestId + 1
+      latestRefreshRequestId = requestId
+
+      try {
+        const nextSessionData = await getSessionByCode(sessionCode)
+
+        if (!isActive || latestRefreshRequestId !== requestId) {
+          return
+        }
+
+        setState({
+          errorMessage: null,
+          sessionData: nextSessionData,
+          status: 'ready',
+        })
+      } catch (error) {
+        if (!isActive || latestRefreshRequestId !== requestId) {
+          return
+        }
+
+        setState((currentState) => ({
+          ...currentState,
+          errorMessage: getErrorMessage(error),
+        }))
+      }
     }
 
     const unsubscribePresence = trackAudiencePresence(sessionId, getParticipantId())
 
-    const unsubscribe = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
+    const unsubscribeSessionUpdates = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
       setState((currentState) => {
         if (!currentState.sessionData) {
           return currentState
@@ -137,12 +172,17 @@ export default function VotePage() {
         }
       })
     })
+    const unsubscribeQuestionChanges = subscribeToSessionQuestionChanges(sessionId, () => {
+      void refreshSessionData()
+    })
 
     return () => {
+      isActive = false
       unsubscribePresence()
-      unsubscribe()
+      unsubscribeSessionUpdates()
+      unsubscribeQuestionChanges()
     }
-  }, [state.sessionData?.session.id])
+  }, [sessionCode, state.sessionData?.session.id])
 
   const currentQuestion = useMemo(() => {
     const questions = state.sessionData?.questions ?? []
@@ -155,6 +195,45 @@ export default function VotePage() {
   const showWordCloudSuccess = wordCloudSuccessQuestionId === currentQuestion?.id
   const inlineErrorMessage = state.errorMessage ?? qAndAResultsState.errorMessage
   const activeQAndAQuestion = currentQuestion && isQAndAQuestion(currentQuestion) ? currentQuestion : null
+  const activeQuizQuestion = currentQuestion && isQuizQuestion(currentQuestion) ? currentQuestion : null
+
+  useEffect(() => {
+    if (!activeQuizQuestion || !state.sessionData?.session.voting_open) {
+      setQuizRemainingSeconds(null)
+      return
+    }
+
+    const quizCycleStartedAtTimestamp = Date.parse(state.sessionData.session.question_cycle_started_at)
+    if (!Number.isFinite(quizCycleStartedAtTimestamp)) {
+      setQuizRemainingSeconds(activeQuizQuestion.config.durationSeconds)
+      return
+    }
+
+    const deadlineTimestamp = quizCycleStartedAtTimestamp + activeQuizQuestion.config.durationSeconds * 1000
+
+    function updateRemainingSeconds() {
+      setQuizRemainingSeconds(Math.max(0, Math.ceil((deadlineTimestamp - Date.now()) / 1000)))
+    }
+
+    updateRemainingSeconds()
+
+    const interval = window.setInterval(() => {
+      updateRemainingSeconds()
+    }, 250)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [
+    activeQuizQuestion,
+    state.sessionData?.session.question_cycle_started_at,
+    state.sessionData?.session.voting_open,
+  ])
+
+  const isQuizTimeUp =
+    Boolean(activeQuizQuestion) &&
+    state.sessionData?.session.voting_open &&
+    (quizRemainingSeconds ?? activeQuizQuestion?.config.durationSeconds ?? 0) <= 0
 
   useEffect(() => {
     if (!state.sessionData?.session.question_cycle_started_at) {
@@ -213,6 +292,7 @@ export default function VotePage() {
 
     const qAndAQuestion = activeQAndAQuestion
     let isActive = true
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
     async function loadQAndAResults() {
       const requestId = latestQAndARequestIdRef.current + 1
@@ -253,13 +333,29 @@ export default function VotePage() {
       }
     }
 
+    function scheduleQAndARefresh() {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer)
+      }
+
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null
+        void loadQAndAResults()
+      }, RESULTS_REFRESH_DEBOUNCE_MS)
+    }
+
     void loadQAndAResults()
     const unsubscribe = subscribeToQuestionResultSignals(qAndAQuestion.id, () => {
-      void loadQAndAResults()
+      scheduleQAndARefresh()
     })
 
     return () => {
       isActive = false
+
+      if (refreshTimer) {
+        clearTimeout(refreshTimer)
+      }
+
       unsubscribe()
     }
   }, [activeQAndAQuestion])
@@ -365,7 +461,12 @@ export default function VotePage() {
   }
 
   async function handleQuizVote(optionIdx: number) {
-    if (!currentQuestion || !isQuizQuestion(currentQuestion)) {
+    if (
+      !currentQuestion ||
+      !isQuizQuestion(currentQuestion) ||
+      !state.sessionData?.session.voting_open ||
+      isQuizTimeUp
+    ) {
       return
     }
 
@@ -510,8 +611,11 @@ export default function VotePage() {
           ) : isQuizQuestion(currentQuestion) ? (
             <QuizPhone
               isSubmitting={isSubmitting}
+              isTimeUp={Boolean(isQuizTimeUp)}
+              isVotingOpen={state.sessionData.session.voting_open}
               onVote={handleQuizVote}
               question={currentQuestion}
+              remainingSeconds={quizRemainingSeconds}
             />
           ) : isScalesQuestion(currentQuestion) ? (
             <ScalesPhone

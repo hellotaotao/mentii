@@ -22,6 +22,10 @@ export function getQuestionResultsChannelTopic(questionId: string) {
   return `question:${questionId}:results`
 }
 
+export function getSessionQuestionsChannelTopic(sessionId: string) {
+  return `${getSessionChannelTopic(sessionId)}:questions`
+}
+
 export function subscribeToSessionUpdates(
   sessionId: string,
   onSessionUpdate: (session: Tables<'sessions'>) => void,
@@ -37,6 +41,28 @@ export function subscribeToSessionUpdates(
       },
       (payload) => {
         onSessionUpdate(payload.new as Tables<'sessions'>)
+      },
+    )
+    .subscribe()
+
+  return () => {
+    void getSupabaseClient().removeChannel(channel)
+  }
+}
+
+export function subscribeToSessionQuestionChanges(sessionId: string, onQuestionsChange: () => void) {
+  const channel = getSupabaseClient()
+    .channel(getSessionQuestionsChannelTopic(sessionId))
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        filter: `session_id=eq.${sessionId}`,
+        schema: 'public',
+        table: 'questions',
+      },
+      () => {
+        onQuestionsChange()
       },
     )
     .subscribe()

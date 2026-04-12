@@ -2,10 +2,23 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
-const mockGetSession = vi.fn()
-const mockOnAuthStateChange = vi.fn()
-const mockSignInWithOtp = vi.fn()
-const mockUnsubscribe = vi.fn()
+const {
+  mockGetSession,
+  mockGetSessionByCode,
+  mockOnAuthStateChange,
+  mockSignInWithOtp,
+  mockUnsubscribe,
+} = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockGetSessionByCode: vi.fn(),
+  mockOnAuthStateChange: vi.fn(),
+  mockSignInWithOtp: vi.fn(),
+  mockUnsubscribe: vi.fn(),
+}))
+
+vi.mock('./lib/supabaseQueries', () => ({
+  getSessionByCode: mockGetSessionByCode,
+}))
 
 vi.mock('./lib/supabase', () => ({
   getSupabaseClient: () => ({
@@ -62,6 +75,7 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   mockGetSession.mockReset()
+  mockGetSessionByCode.mockReset()
   mockOnAuthStateChange.mockReset()
   mockSignInWithOtp.mockReset()
   mockUnsubscribe.mockReset()
@@ -89,6 +103,12 @@ beforeEach(() => {
       user: null,
     },
     error: null,
+  })
+  mockGetSessionByCode.mockResolvedValue({
+    questions: [],
+    session: {
+      state: 'live',
+    },
   })
 })
 
@@ -161,7 +181,7 @@ describe('App routing shell', () => {
     expect(screen.getByText(/join code/i)).toBeInTheDocument()
   })
 
-  it('navigates from the join page to the vote route on submit', () => {
+  it('navigates from the join page to the vote route on submit', async () => {
     renderAt('/')
 
     fireEvent.change(screen.getByLabelText(/6-digit code/i), {
@@ -169,8 +189,9 @@ describe('App routing shell', () => {
     })
     fireEvent.submit(screen.getByRole('button', { name: /join/i }).closest('form')!)
 
+    await waitFor(() => expect(mockGetSessionByCode).toHaveBeenCalledWith('482176'))
     expect(
-      screen.getByRole('heading', {
+      await screen.findByRole('heading', {
         name: /session 482176/i,
       }),
     ).toBeInTheDocument()
@@ -178,6 +199,8 @@ describe('App routing shell', () => {
 
   it('bootstraps the audience route from a code query parameter', async () => {
     renderAt('/?code=482176')
+
+    await waitFor(() => expect(mockGetSessionByCode).toHaveBeenCalledWith('482176'))
 
     expect(
       await screen.findByRole('heading', {

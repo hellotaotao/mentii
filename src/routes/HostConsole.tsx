@@ -1,6 +1,7 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Eye, Play } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import QuestionBigScreenPreview from '../components/QuestionBigScreenPreview'
 import SlideList from '../components/SlideList'
 import MultipleChoiceEditor from '../components/questions/MultipleChoice/Editor'
 import OpenEndedEditor from '../components/questions/OpenEnded/Editor'
@@ -40,14 +41,6 @@ function getErrorMessage(error: unknown) {
   return 'Something went wrong while updating this room.'
 }
 
-function getPreviewTitle(question: EditorQuestion | null) {
-  if (!question) {
-    return 'Select a slide'
-  }
-
-  return question.title.trim() || 'Untitled question'
-}
-
 function createQuestionCycleStartedAt() {
   return new Date().toISOString()
 }
@@ -73,232 +66,6 @@ function reorderQuestionState(currentQuestions: EditorQuestion[], orderedQuestio
     ...question,
     orderIndex: index,
   }))
-}
-
-function QuestionPreview({ question }: { question: EditorQuestion | null }) {
-  if (!question) {
-    return (
-      <div className="flex min-h-[520px] items-center justify-center rounded-[32px] border border-dashed border-white/15 bg-slate-950/60 p-8 text-center text-slate-400">
-        Choose a slide to preview how the presenter screen will look later.
-      </div>
-    )
-  }
-
-  if (!isMultipleChoiceQuestion(question)) {
-    if (isQuizQuestion(question)) {
-      return (
-        <div className="flex min-h-[520px] flex-col rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col justify-center">
-            <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-300">quiz</p>
-            <h2 className="mt-5 text-center text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-            <div className="mt-8 text-center text-base text-slate-300">{`${question.config.durationSeconds}s remaining`}</div>
-            <div className="mt-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <section className="space-y-4">
-                {question.config.options.map((option, index) => (
-                  <article
-                    className={`rounded-3xl border px-5 py-4 ${
-                      index === question.config.correctOptionIdx
-                        ? 'border-emerald-300/30 bg-emerald-400/10'
-                        : 'border-white/10 bg-white/5'
-                    }`}
-                    key={`${question.id}-preview-quiz-${index}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">{`${3 - Math.abs(1 - index)} votes`}</p>
-                        <p className="mt-3 text-base text-slate-100">{option.trim() || `Option ${index + 1}`}</p>
-                      </div>
-                      {index === question.config.correctOptionIdx ? (
-                        <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-emerald-100">
-                          Correct
-                        </span>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </section>
-
-              <aside className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Leaderboard</p>
-                <ol className="mt-4 space-y-3">
-                  {['Player 1', 'Player 2', 'Player 3'].map((label, index) => (
-                    <li
-                      className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"
-                      key={`${question.id}-preview-quiz-leader-${label}`}
-                    >
-                      <p className="text-xs uppercase tracking-[0.25em] text-slate-400">{`Rank ${index + 1}`}</p>
-                      <p className="mt-1 text-base font-medium text-white">{label}</p>
-                    </li>
-                  ))}
-                </ol>
-              </aside>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (isQAndAQuestion(question)) {
-      return (
-        <div className="flex min-h-[520px] flex-col rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col justify-center">
-            <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-300">q&amp;a</p>
-            <h2 className="mt-5 text-center text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {[
-                { answered: false, text: 'How will support handle launch issues?', upvotes: 5 },
-                { answered: true, text: 'Can we publish a rollback checklist?', upvotes: 3 },
-              ].map((entry, index) => (
-                <article
-                  className={`rounded-3xl border px-5 py-4 ${
-                    entry.answered
-                      ? 'border-emerald-300/30 bg-emerald-400/10'
-                      : 'border-white/10 bg-white/5'
-                  }`}
-                  key={`${question.id}-preview-q-and-a-${index}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-slate-400">{`${entry.upvotes} upvotes`}</p>
-                      <p className="mt-3 text-base leading-7 text-slate-100">{entry.text}</p>
-                    </div>
-                    {entry.answered ? (
-                      <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-emerald-100">
-                        Answered
-                      </span>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (isScalesQuestion(question)) {
-      return (
-        <div className="flex min-h-[520px] flex-col rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col justify-center">
-            <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-300">scales</p>
-            <h2 className="mt-5 text-center text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-            <div className="mt-10 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <section className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Average score</p>
-                <p className="mt-5 text-5xl font-semibold text-white">3.8 / 5</p>
-                <div className="mt-6 flex items-start justify-between gap-4 text-sm text-slate-300">
-                  <span className="max-w-[45%] text-left">{question.config.leftLabel}</span>
-                  <span className="max-w-[45%] text-right">{question.config.rightLabel}</span>
-                </div>
-              </section>
-
-              <section className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6">
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <div key={`${question.id}-preview-scale-${rating}`}>
-                    <div className="flex items-center justify-between text-sm text-slate-200">
-                      <span className="font-medium">{`${rating} / 5`}</span>
-                      <span>{`${Math.max(0, 6 - Math.abs(4 - rating) * 2)} votes`}</span>
-                    </div>
-                    <div className="mt-2 h-3 rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-cyan-400/70"
-                        style={{
-                          width: `${Math.max(12, 86 - Math.abs(4 - rating) * 18)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </section>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (isOpenEndedQuestion(question)) {
-      return (
-        <div className="flex min-h-[520px] flex-col rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col justify-center">
-            <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-300">open ended</p>
-            <h2 className="mt-5 text-center text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {[
-                'More visible release planning would help the whole team.',
-                'Shorter standups and clearer ownership on cross-team work.',
-                'I want clearer sprint goals before kickoff.',
-              ].map((response, index) => (
-                <article
-                  className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-left shadow-sm"
-                  key={`${question.id}-preview-open-ended-${index}`}
-                >
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">{`Response ${index + 1}`}</p>
-                  <p className="mt-3 text-base leading-7 text-slate-100">{response}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (isWordCloudQuestion(question)) {
-      return (
-        <div className="flex min-h-[520px] flex-col rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col items-center justify-center text-center">
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">word cloud</p>
-            <h2 className="mt-5 text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              {['productive', 'focused', 'clear', 'energized', 'calm'].map((word, index) => (
-                <span
-                  className="rounded-full px-3 py-2 font-semibold text-cyan-100"
-                  key={word}
-                  style={{
-                    fontSize: `${22 + index * 8}px`,
-                    opacity: 0.55 + index * 0.08,
-                  }}
-                >
-                  {word}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    return null
-  }
-
-  return (
-    <div className="min-h-[520px] rounded-[32px] border border-white/10 bg-slate-950/70 p-10">
-      <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">{question.config.chartType}</p>
-        <h2 className="mt-5 text-4xl font-semibold">{getPreviewTitle(question)}</h2>
-        <div className="mt-10 w-full space-y-4">
-          {question.config.options.map((option, index) => (
-            <div
-              className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 px-5 py-4"
-              key={`${question.id}-preview-${index}`}
-            >
-              <span className="flex size-10 items-center justify-center rounded-full bg-cyan-400/20 text-sm font-semibold text-cyan-200">
-                {index + 1}
-              </span>
-              <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-lg font-medium text-white">{option.trim() || `Option ${index + 1}`}</p>
-                <div className="mt-2 h-2 rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-cyan-400/70"
-                    style={{ width: `${Math.max(18, 72 - index * 10)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export default function HostConsole() {
@@ -696,11 +463,11 @@ export default function HostConsole() {
 
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
+        <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
           <h1 className="mt-3 text-3xl font-semibold">Loading host console…</h1>
-          <p className="mt-4 text-sm text-slate-300">Fetching the room slides and draft settings from Supabase.</p>
+          <p className="mt-4 text-sm text-slate-600">Fetching the room slides and draft settings from Supabase.</p>
         </section>
       </main>
     )
@@ -708,23 +475,23 @@ export default function HostConsole() {
 
   if (status === 'error' || !editorData) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-md rounded-3xl border border-rose-300/30 bg-rose-400/10 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-rose-200">Host</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
+        <section className="w-full max-w-md rounded-3xl border border-rose-300/50 bg-rose-50 p-8 shadow-lg">
+          <p className="text-sm uppercase tracking-[0.3em] text-rose-600">Host</p>
           <h1 className="mt-3 text-3xl font-semibold">Unable to load the editor</h1>
-          <p className="mt-4 text-sm text-rose-100">{errorMessage ?? 'Try refreshing the page.'}</p>
+          <p className="mt-4 text-sm text-rose-700">{errorMessage ?? 'Try refreshing the page.'}</p>
         </section>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <header className="border-b border-white/10 bg-slate-950/95">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+    <main className="min-h-screen bg-slate-100 text-slate-900">
+      <header className="border-b border-slate-200 bg-white/95">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
             <button
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               onClick={() => navigate('/host')}
               type="button"
             >
@@ -732,13 +499,13 @@ export default function HostConsole() {
               Back to rooms
             </button>
 
-            <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-300">Host</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
             <h1 className="text-3xl font-semibold">Room editor</h1>
 
             <label className="block max-w-md space-y-2" htmlFor="room-name-input">
-              <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Room name</span>
+              <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Room name</span>
               <input
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-base text-white outline-none transition focus:border-cyan-300"
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-400"
                 id="room-name-input"
                 onBlur={flushRoomNameSave}
                 onChange={(event) => queueRoomNameSave(event.target.value)}
@@ -751,20 +518,20 @@ export default function HostConsole() {
               />
             </label>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-200">
-              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
+              <div className="inline-flex items-center gap-3 rounded-full border border-slate-300 bg-white px-4 py-2">
                 <span>Code</span>
                 <span className="text-base font-semibold tracking-[0.35em]">
                   {formatSessionCode(editorData.session.code)}
                 </span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                <span className="text-slate-300">Room ID</span>
-                <span className="font-mono text-xs text-slate-100">{editorData.session.id}</span>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2">
+                <span className="text-slate-500">Room ID</span>
+                <span className="font-mono text-xs text-slate-700">{editorData.session.id}</span>
               </div>
             </div>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {roomNameSaveState === 'saving'
                 ? 'Saving room name…'
                 : roomNameSaveState === 'saved'
@@ -777,7 +544,7 @@ export default function HostConsole() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={handlePreview}
               type="button"
             >
@@ -785,7 +552,7 @@ export default function HostConsole() {
               Preview
             </button>
             <button
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 void handleShare()
               }}
@@ -808,7 +575,7 @@ export default function HostConsole() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[280px_minmax(0,1fr)_360px]">
+      <section className="mx-auto grid max-w-[1400px] gap-4 px-4 py-6 xl:grid-cols-[190px_minmax(0,1fr)_360px]">
         <SlideList
           onAddSlide={(type) => {
             void handleAddSlide(type)
@@ -823,11 +590,11 @@ export default function HostConsole() {
         />
 
         <section className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-amber-300">Preview</p>
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="text-sm uppercase tracking-[0.3em] text-amber-500">Preview</p>
+                <p className="mt-2 text-sm text-slate-600">
                   {editorData.session.state === 'live'
                     ? 'This slide is currently driving the audience phones and big screen.'
                     : 'This center pane mirrors the big-screen composition while you build the slide.'}
@@ -836,7 +603,7 @@ export default function HostConsole() {
 
               <div className="flex items-center gap-2">
                 <button
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!previousQuestion}
                   onClick={() => {
                     if (previousQuestion) {
@@ -849,7 +616,7 @@ export default function HostConsole() {
                   Previous slide
                 </button>
                 <button
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!nextQuestion}
                   onClick={() => {
                     if (nextQuestion) {
@@ -865,17 +632,17 @@ export default function HostConsole() {
             </div>
           </div>
 
-          <QuestionPreview question={selectedQuestion} />
+          <QuestionBigScreenPreview question={selectedQuestion} />
         </section>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           {errorMessage ? (
-            <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+            <div className="rounded-2xl border border-rose-300/50 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {errorMessage}
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
             {saveState === 'saving'
               ? 'Saving changes…'
               : saveState === 'saved'

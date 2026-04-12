@@ -13,6 +13,7 @@ const {
   mockSubmitScalesVote,
   mockSubmitWordCloudVote,
   mockSubscribeToQuestionResultSignals,
+  mockSubscribeToSessionQuestionChanges,
   mockSubscribeToSessionUpdates,
   mockTrackAudiencePresence,
   mockUpvoteQAndAEntry,
@@ -26,6 +27,7 @@ const {
   mockSubmitScalesVote: vi.fn(),
   mockSubmitWordCloudVote: vi.fn(),
   mockSubscribeToQuestionResultSignals: vi.fn(),
+  mockSubscribeToSessionQuestionChanges: vi.fn(),
   mockSubscribeToSessionUpdates: vi.fn(),
   mockTrackAudiencePresence: vi.fn(),
   mockUpvoteQAndAEntry: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock('../lib/supabaseQueries', () => ({
 
 vi.mock('../lib/realtime', () => ({
   subscribeToQuestionResultSignals: mockSubscribeToQuestionResultSignals,
+  subscribeToSessionQuestionChanges: mockSubscribeToSessionQuestionChanges,
   subscribeToSessionUpdates: mockSubscribeToSessionUpdates,
   trackAudiencePresence: mockTrackAudiencePresence,
 }))
@@ -230,6 +233,7 @@ beforeEach(() => {
   mockSubmitScalesVote.mockReset()
   mockSubmitWordCloudVote.mockReset()
   mockSubscribeToQuestionResultSignals.mockReset()
+  mockSubscribeToSessionQuestionChanges.mockReset()
   mockSubscribeToSessionUpdates.mockReset()
   mockTrackAudiencePresence.mockReset()
   mockUpvoteQAndAEntry.mockReset()
@@ -246,6 +250,7 @@ beforeEach(() => {
   mockSubmitScalesVote.mockResolvedValue(undefined)
   mockSubmitWordCloudVote.mockResolvedValue(undefined)
   mockSubscribeToQuestionResultSignals.mockReturnValue(vi.fn())
+  mockSubscribeToSessionQuestionChanges.mockReturnValue(vi.fn())
   mockSubscribeToSessionUpdates.mockReturnValue(vi.fn())
   mockTrackAudiencePresence.mockReturnValue(vi.fn())
   mockUpvoteQAndAEntry.mockResolvedValue(undefined)
@@ -253,6 +258,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   window.history.pushState({}, '', '/')
 })
 
@@ -570,11 +577,14 @@ describe('VotePage', () => {
   })
 
   it('submits a quiz answer and shows the confirmation state', async () => {
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-09T00:00:10.000Z').getTime())
+
     mockGetSessionByCode.mockResolvedValueOnce({
       questions: [quizQuestion],
       session: {
         ...liveSession,
         current_question_id: 'question-7',
+        question_cycle_started_at: '2026-04-09T00:00:00.000Z',
       },
     })
 
@@ -594,5 +604,76 @@ describe('VotePage', () => {
 
     await waitFor(() => expect(mockSubmitQuizVote).toHaveBeenCalledWith('question-7', 1))
     expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
+    dateNowSpy.mockRestore()
+  })
+
+  it('shows quiz countdown and locks answers after time runs out', async () => {
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-09T00:00:45.000Z').getTime())
+
+    mockGetSessionByCode.mockResolvedValueOnce({
+      questions: [quizQuestion],
+      session: {
+        ...liveSession,
+        current_question_id: 'question-7',
+        question_cycle_started_at: '2026-04-09T00:00:00.000Z',
+      },
+    })
+
+    renderVotePage()
+
+    expect(
+      await screen.findByRole('heading', {
+        name: /which outcome matters most for launch readiness\?/i,
+      }),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByText(/time's up\. waiting for the next question\./i)).toBeInTheDocument(),
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /reliability/i,
+      }),
+    )
+
+    expect(mockSubmitQuizVote).not.toHaveBeenCalled()
+    dateNowSpy.mockRestore()
+  })
+
+  it('refreshes questions when the host adds or edits slides', async () => {
+    let questionChangeListener: (() => void) | null = null
+
+    mockSubscribeToSessionQuestionChanges.mockImplementation((_sessionId, callback) => {
+      questionChangeListener = callback
+      return vi.fn()
+    })
+    mockGetSessionByCode
+      .mockResolvedValueOnce({
+        questions: [question, secondQuestion],
+        session: liveSession,
+      })
+      .mockResolvedValueOnce({
+        questions: [question, secondQuestion, wordCloudQuestion],
+        session: {
+          ...liveSession,
+          current_question_id: 'question-3',
+        },
+      })
+
+    renderVotePage()
+
+    await screen.findByRole('heading', {
+      name: /which roadmap theme matters most next quarter\?/i,
+    })
+
+    await act(async () => {
+      questionChangeListener?.()
+    })
+
+    expect(
+      await screen.findByRole('heading', {
+        name: /share one word for this sprint/i,
+      }),
+    ).toBeInTheDocument()
   })
 })

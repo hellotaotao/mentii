@@ -2,17 +2,33 @@ import type { QuizQuestion } from '../../../types/questions'
 
 type QuizPhoneProps = {
   isSubmitting: boolean
+  isTimeUp: boolean
+  isVotingOpen: boolean
   onVote: (optionIdx: number) => void
   question: QuizQuestion
+  remainingSeconds: number | null
 }
 
-export default function QuizPhone({ isSubmitting, onVote, question }: QuizPhoneProps) {
+export default function QuizPhone({
+  isSubmitting,
+  isTimeUp,
+  isVotingOpen,
+  onVote,
+  question,
+  remainingSeconds,
+}: QuizPhoneProps) {
+  const isLocked = isSubmitting || !isVotingOpen || isTimeUp
+  const countdownLabel =
+    isVotingOpen && !isTimeUp
+      ? `${remainingSeconds ?? question.config.durationSeconds}s remaining`
+      : "Time's up. Waiting for the next question."
+
   return (
     <div className="space-y-4">
       {question.config.options.map((option, optionIdx) => (
         <button
           className="flex w-full items-center justify-between rounded-3xl border border-white/10 bg-white/10 px-5 py-4 text-left text-base font-medium text-white transition hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
+          disabled={isLocked}
           key={`${question.id}-quiz-phone-option-${optionIdx}`}
           onClick={() => onVote(optionIdx)}
           type="button"
@@ -22,7 +38,7 @@ export default function QuizPhone({ isSubmitting, onVote, question }: QuizPhoneP
         </button>
       ))}
 
-      <p className="text-sm text-slate-300">Answer before the presenter timer runs out.</p>
+      <p className="text-sm text-slate-300">{countdownLabel}</p>
     </div>
   )
 }
