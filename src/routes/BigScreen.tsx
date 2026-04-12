@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useParams } from 'react-router-dom'
 import PresenterControls from '../components/PresenterControls'
 import SessionCodeBar from '../components/SessionCodeBar'
@@ -11,6 +12,7 @@ import WordCloudBigScreen from '../components/questions/WordCloud/BigScreen'
 import { useQuestionResults } from '../hooks/useQuestionResults'
 import { useSession } from '../hooks/useSession'
 import { subscribeToSessionPresenceCount } from '../lib/realtime'
+import { buildJoinUrl, formatSessionCode } from '../lib/sessionCode'
 import { resetQuestionResults, setQAndAEntryAnswered, updateSession } from '../lib/supabaseQueries'
 import {
   isMultipleChoiceQuestion,
@@ -265,6 +267,32 @@ export default function BigScreen() {
           <h1 className="mt-3 text-3xl font-semibold">Loading presentation…</h1>
           <p className="mt-4 text-sm text-slate-300">Fetching the live session, current slide, and vote totals.</p>
         </section>
+      </main>
+    )
+  }
+
+  if (status === 'ready' && session && session.state !== 'live') {
+    const joinUrl = buildJoinUrl(session.code)
+
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 text-white">
+        <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Mentii</p>
+        <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Join the session</h1>
+        <p className="mt-3 text-lg text-slate-300">Scan the QR code or enter the code on your phone.</p>
+
+        <div className="mt-10 rounded-3xl bg-white p-5">
+          <QRCodeSVG aria-label="Session QR code" size={220} value={joinUrl} />
+        </div>
+
+        <p className="mt-8 text-5xl font-bold tracking-[0.5em] sm:text-6xl">
+          {formatSessionCode(session.code)}
+        </p>
+
+        <div className="mt-6 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300">
+          {`${participantCount} participant${participantCount === 1 ? '' : 's'} connected`}
+        </div>
+
+        <p className="mt-10 text-sm text-slate-500">Waiting for the presenter to start…</p>
       </main>
     )
   }

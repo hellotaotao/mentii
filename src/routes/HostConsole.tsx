@@ -1,6 +1,7 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Eye, Play } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Eye, Play, Share2, Users, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { QRCodeSVG } from 'qrcode.react'
 import QuestionBigScreenPreview from '../components/QuestionBigScreenPreview'
 import SlideList from '../components/SlideList'
 import MultipleChoiceEditor from '../components/questions/MultipleChoice/Editor'
@@ -10,6 +11,7 @@ import QuizEditor from '../components/questions/Quiz/Editor'
 import ScalesEditor from '../components/questions/Scales/Editor'
 import WordCloudEditor from '../components/questions/WordCloud/Editor'
 import type { HostPropertyTab } from '../components/questions/MultipleChoice/editorTabs'
+import { subscribeToSessionPresenceCount } from '../lib/realtime'
 import {
   createQuestion,
   deleteQuestion,
@@ -78,6 +80,8 @@ export default function HostConsole() {
   const [roomNameSaveState, setRoomNameSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
+  const [participantCount, setParticipantCount] = useState(0)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareState, setShareState] = useState<'copied' | 'idle'>('idle')
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
@@ -170,11 +174,33 @@ export default function HostConsole() {
 
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current)
+        persistTimerRef.current = null
+      }
+
+      if (pendingQuestionRef.current) {
+        void updateQuestion(pendingQuestionRef.current.id, {
+          config: pendingQuestionRef.current.config,
+          title: pendingQuestionRef.current.title,
+        })
+        pendingQuestionRef.current = null
       }
 
       if (roomNamePersistTimerRef.current) {
         clearTimeout(roomNamePersistTimerRef.current)
+        roomNamePersistTimerRef.current = null
       }
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!sessionId) {
+      return
+    }
+
+    const unsubscribe = subscribeToSessionPresenceCount(sessionId, setParticipantCount)
+
+    return () => {
+      unsubscribe()
     }
   }, [sessionId])
 
@@ -519,6 +545,21 @@ export default function HostConsole() {
             </label>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
+              {editorData.session.state === 'live' ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-emerald-700">
+                  <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
+                  <span className="font-medium">Live</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-slate-500">
+                  <span className="size-2 rounded-full bg-slate-400" />
+                  <span className="font-medium">Draft</span>
+                </div>
+              )}
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2">
+                <Users className="size-4 text-slate-500" />
+                <span>{participantCount}</span>
+              </div>
               <div className="inline-flex items-center gap-3 rounded-full border border-slate-300 bg-white px-4 py-2">
                 <span>Code</span>
                 <span className="text-base font-semibold tracking-[0.35em]">
@@ -553,13 +594,11 @@ export default function HostConsole() {
             </button>
             <button
               className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => {
-                void handleShare()
-              }}
+              onClick={() => setShareModalOpen(true)}
               type="button"
             >
-              <Copy className="size-4" />
-              {shareState === 'copied' ? 'Copied' : 'Share'}
+              <Share2 className="size-4" />
+              Share
             </button>
             <button
               className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
@@ -938,6 +977,56 @@ export default function HostConsole() {
           ) : null}
         </aside>
       </section>
+
+      {shareModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShareModalOpen(false)
+              setShareState('idle')
+            }
+          }}
+        >
+          <div className="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl">
+            <button
+              aria-label="Close share dialog"
+              className="absolute right-4 top-4 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              onClick={() => {
+                setShareModalOpen(false)
+                setShareState('idle')
+              }}
+              type="button"
+            >
+              <X className="size-5" />
+            </button>
+
+            <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-600">Share this room</p>
+            <p className="mt-2 text-center text-sm text-slate-500">Scan the QR code or enter the code below to join.</p>
+
+            <div className="mt-6 flex justify-center">
+              <div className="rounded-2xl bg-white p-3 shadow-inner ring-1 ring-slate-200">
+                <QRCodeSVG aria-label="Session QR code" size={180} value={buildJoinUrl(editorData.session.code)} />
+              </div>
+            </div>
+
+            <p className="mt-6 text-center text-3xl font-bold tracking-[0.4em] text-slate-900">
+              {formatSessionCode(editorData.session.code)}
+            </p>
+
+            <button
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              onClick={() => {
+                void handleShare()
+              }}
+              type="button"
+            >
+              <Copy className="size-4" />
+              {shareState === 'copied' ? 'Link copied!' : 'Copy join link'}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

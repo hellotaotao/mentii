@@ -673,7 +673,7 @@ describe('HostConsole', () => {
     )
   })
 
-  it('opens preview and copies the join link', async () => {
+  it('opens preview and copies the join link via share modal', async () => {
     const openWindowMock = vi.spyOn(window, 'open').mockImplementation(() => null)
     const writeTextMock = vi.fn().mockResolvedValue(undefined)
 
@@ -692,8 +692,15 @@ describe('HostConsole', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }))
 
+    const copyButton = await screen.findByRole('button', { name: /copy join link/i })
+    fireEvent.click(copyButton)
+
     await waitFor(() =>
       expect(writeTextMock).toHaveBeenCalledWith(expect.stringMatching(/\/\?code=482176$/)),
+    )
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /link copied/i })).toBeInTheDocument(),
     )
 
     openWindowMock.mockRestore()
