@@ -16,6 +16,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   background:
@@ -30,4 +34,122 @@ body {
 button,
 input {
   font: inherit;
+}
+
+@keyframes mentii-grid-pan {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-2%, 2%, 0) scale(1.04);
+  }
+}
+
+@keyframes mentii-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(0, -16px, 0) scale(1.06);
+  }
+}
+
+@keyframes mentii-shimmer {
+  0% {
+    transform: translateX(-160%) skewX(-18deg);
+  }
+
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+@keyframes mentii-bar-breathe {
+  0%,
+  100% {
+    filter: saturate(0.92);
+    transform: scaleX(0.97);
+  }
+
+  50% {
+    filter: saturate(1.18);
+    transform: scaleX(1);
+  }
+}
+
+@keyframes mentii-chip-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+.mentii-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+  transform-origin: center;
+  animation: mentii-grid-pan 22s ease-in-out infinite;
+}
+
+.mentii-orb {
+  filter: blur(16px);
+}
+
+.mentii-float-slow {
+  animation: mentii-float 16s ease-in-out infinite;
+}
+
+.mentii-float-delayed {
+  animation: mentii-float 20s ease-in-out infinite -6s;
+}
+
+.mentii-shimmer {
+  isolation: isolate;
+}
+
+.mentii-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  background: linear-gradient(110deg, transparent 36%, rgba(255, 255, 255, 0.12) 50%, transparent 64%);
+  pointer-events: none;
+  animation: mentii-shimmer 7s linear infinite;
+}
+
+.mentii-bar {
+  transform-origin: left center;
+  animation: mentii-bar-breathe 3.4s ease-in-out infinite;
+}
+
+.mentii-float-chip {
+  animation: mentii-chip-float 5.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .mentii-grid,
+  .mentii-float-slow,
+  .mentii-float-delayed,
+  .mentii-bar,
+  .mentii-float-chip {
+    animation: none !important;
+  }
+
+  .mentii-shimmer::after {
+    display: none;
+  }
 }

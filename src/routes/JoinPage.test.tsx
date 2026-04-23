@@ -37,6 +37,30 @@ afterEach(() => {
 })
 
 describe('JoinPage', () => {
+  it('introduces Mentii for first-time visitors while keeping clear join and host paths', () => {
+    renderJoinPage()
+
+    expect(
+      screen.getByRole('heading', {
+        name: /turn any presentation into a live conversation/i,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/participants join instantly with a room code/i)).toBeInTheDocument()
+    expect(screen.getByText(/i have a room code/i)).toBeInTheDocument()
+    expect(screen.getByText(/i'm running the session/i)).toBeInTheDocument()
+    const hostSignInLinks = screen.getAllByRole('link', {
+      name: /sign in as host/i,
+    })
+
+    expect(hostSignInLinks).toHaveLength(2)
+    hostSignInLinks.forEach((link) => expect(link).toHaveAttribute('href', '/host'))
+    expect(
+      screen.getByRole('heading', {
+        name: /join a live session/i,
+      }),
+    ).toBeInTheDocument()
+  })
+
   it('validates room code before navigating to the vote route', async () => {
     renderJoinPage()
 

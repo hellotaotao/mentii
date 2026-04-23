@@ -8,6 +8,7 @@ const {
   mockDeleteQuestion,
   mockGetSessionEditorData,
   mockReorderQuestions,
+  mockSubscribeToSessionPresenceCount,
   mockUpdateRoomName,
   mockUpdateSession,
   mockUpdateQuestion,
@@ -16,6 +17,7 @@ const {
   mockDeleteQuestion: vi.fn(),
   mockGetSessionEditorData: vi.fn(),
   mockReorderQuestions: vi.fn(),
+  mockSubscribeToSessionPresenceCount: vi.fn(),
   mockUpdateRoomName: vi.fn(),
   mockUpdateSession: vi.fn(),
   mockUpdateQuestion: vi.fn(),
@@ -29,6 +31,10 @@ vi.mock('../lib/supabaseQueries', () => ({
   updateRoomName: mockUpdateRoomName,
   updateSession: mockUpdateSession,
   updateQuestion: mockUpdateQuestion,
+}))
+
+vi.mock('../lib/realtime', () => ({
+  subscribeToSessionPresenceCount: mockSubscribeToSessionPresenceCount,
 }))
 
 const hostUser = {
@@ -170,6 +176,7 @@ beforeEach(() => {
   mockUpdateQuestion.mockReset()
   mockDeleteQuestion.mockReset()
   mockReorderQuestions.mockReset()
+  mockSubscribeToSessionPresenceCount.mockReset()
   mockUpdateRoomName.mockReset()
   mockUpdateSession.mockReset()
 
@@ -181,6 +188,7 @@ beforeEach(() => {
   mockUpdateQuestion.mockResolvedValue(undefined)
   mockDeleteQuestion.mockResolvedValue(undefined)
   mockReorderQuestions.mockResolvedValue(undefined)
+  mockSubscribeToSessionPresenceCount.mockReturnValue(vi.fn())
   mockUpdateRoomName.mockResolvedValue(undefined)
   mockUpdateSession.mockResolvedValue(undefined)
 })

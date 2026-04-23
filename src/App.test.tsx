@@ -123,6 +123,11 @@ describe('App routing shell', () => {
 
     expect(
       screen.getByRole('heading', {
+        name: /turn any presentation into a live conversation/i,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
         name: /join a live session/i,
       }),
     ).toBeInTheDocument()
