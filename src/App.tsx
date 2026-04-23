@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import BigScreen from './routes/BigScreen'
+import DemoHostWorkspace from './routes/DemoHostWorkspace'
 import HostAuthGate from './routes/HostAuthGate'
 import HostConsole from './routes/HostConsole'
 import HostDashboard from './routes/HostDashboard'
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<JoinPage />} />
         <Route path="/vote/:sessionCode" element={<VotePage />} />
+        <Route path="/host/demo" element={<DemoHostWorkspace />} />
         <Route path="/host" element={<HostAuthGate />}>
           <Route index element={<HostDashboard />} />
           <Route path="new" element={<Navigate replace to="/host" />} />

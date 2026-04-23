@@ -49,6 +49,17 @@ vi.mock('./routes/BigScreen', async () => {
   }
 })
 
+vi.mock('./routes/DemoHostWorkspace', () => ({
+  default: function MockDemoHostWorkspaceRoute() {
+    return (
+      <main>
+        <h1>Demo host workspace</h1>
+        <p>Seeded room preview</p>
+      </main>
+    )
+  },
+}))
+
 vi.mock('./routes/VotePage', async () => {
   const { useParams } = await import('react-router-dom')
 
@@ -149,12 +160,22 @@ describe('App routing shell', () => {
     expect(screen.getByText(/audience route/i)).toBeInTheDocument()
   })
 
-  it('prompts for host magic-link sign-in on host routes', async () => {
+  it('shows onboarding context before host magic-link sign-in on host routes', async () => {
     renderAt('/host')
 
     expect(
       await screen.findByRole('heading', {
-        name: /sign in to host rooms/i,
+        name: /see mentii hosting before you sign in/i,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', {
+        name: /explore demo workspace/i,
+      }),
+    ).toHaveAttribute('href', '/host/demo')
+    expect(
+      screen.getByRole('heading', {
+        name: /create your first real room/i,
       }),
     ).toBeInTheDocument()
     expect(mockGetSession).not.toHaveBeenCalled()
@@ -173,6 +194,17 @@ describe('App routing shell', () => {
       }),
     )
     expect(screen.getByText(/check your email for the sign-in link/i)).toBeInTheDocument()
+  })
+
+  it('renders the anonymous demo workspace route', () => {
+    renderAt('/host/demo')
+
+    expect(
+      screen.getByRole('heading', {
+        name: /demo host workspace/i,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/seeded room preview/i)).toBeInTheDocument()
   })
 
   it('renders the presenter placeholder on present routes', () => {
