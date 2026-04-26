@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import JoinPage from './JoinPage'
+import { ThemeProvider } from '../lib/themeContext'
 
 const { mockGetSessionByCode } = vi.hoisted(() => ({
   mockGetSessionByCode: vi.fn(),
@@ -13,12 +14,14 @@ vi.mock('../lib/supabaseQueries', () => ({
 
 function renderJoinPage(path = '/') {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/" element={<JoinPage />} />
-        <Route path="/vote/:sessionCode" element={<p data-testid="vote-route">Vote route</p>} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/" element={<JoinPage />} />
+          <Route path="/vote/:sessionCode" element={<p data-testid="vote-route">Vote route</p>} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   )
 }
 
@@ -73,7 +76,7 @@ describe('JoinPage', () => {
     expect(await screen.findByTestId('vote-route')).toBeInTheDocument()
   })
 
-  it('shows a helpful message when the code format is incomplete', async () => {
+  it('shows a helpful message when the code format is incomplete', () => {
     renderJoinPage()
 
     fireEvent.change(screen.getByLabelText(/6-digit code/i), {
@@ -86,7 +89,9 @@ describe('JoinPage', () => {
   })
 
   it('shows a friendly not-found message for unknown room codes', async () => {
-    mockGetSessionByCode.mockRejectedValueOnce(new Error('JSON object requested, multiple (or no) rows returned'))
+    mockGetSessionByCode.mockRejectedValueOnce(
+      new Error('JSON object requested, multiple (or no) rows returned'),
+    )
 
     renderJoinPage()
 
