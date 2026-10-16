@@ -5,6 +5,7 @@ import BigScreen from './BigScreen'
 
 const {
   mockGetQuestionResults,
+  mockGetQuizLeaderboard,
   mockGetSessionEditorData,
   mockResetQuestionResults,
   mockSetQAndAEntryAnswered,
@@ -15,6 +16,7 @@ const {
   mockUpdateSession,
 } = vi.hoisted(() => ({
   mockGetQuestionResults: vi.fn(),
+  mockGetQuizLeaderboard: vi.fn(),
   mockGetSessionEditorData: vi.fn(),
   mockResetQuestionResults: vi.fn(),
   mockSetQAndAEntryAnswered: vi.fn(),
@@ -35,9 +37,28 @@ vi.mock('../lib/supabaseQueries', () => ({
 
 vi.mock('../lib/realtime', () => ({
   subscribeToQuestionResultSignals: mockSubscribeToQuestionResultSignals,
+  subscribeToReactions: () => () => {},
+  // Adapt the count-based presence mock to the roster-based subscription.
+  subscribeToSessionAudience: (
+    sessionId: string,
+    onAudienceChange: (members: Array<{ emoji: string | null; nickname: string | null; participantId: string }>) => void,
+  ) =>
+    mockSubscribeToSessionPresenceCount(sessionId, (count: number) =>
+      onAudienceChange(
+        Array.from({ length: count }, (_value, index) => ({
+          emoji: null,
+          nickname: null,
+          participantId: `participant-${index}`,
+        })),
+      ),
+    ),
   subscribeToSessionQuestionChanges: mockSubscribeToSessionQuestionChanges,
-  subscribeToSessionPresenceCount: mockSubscribeToSessionPresenceCount,
   subscribeToSessionUpdates: mockSubscribeToSessionUpdates,
+}))
+
+vi.mock('../lib/quizGame', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/quizGame')>()),
+  getQuizLeaderboard: mockGetQuizLeaderboard,
 }))
 
 vi.mock('qrcode.react', () => ({
@@ -316,6 +337,7 @@ function createDeferred<T>() {
 beforeEach(() => {
   mockGetSessionEditorData.mockReset()
   mockGetQuestionResults.mockReset()
+  mockGetQuizLeaderboard.mockReset()
   mockResetQuestionResults.mockReset()
   mockSetQAndAEntryAnswered.mockReset()
   mockSubscribeToQuestionResultSignals.mockReset()
@@ -329,6 +351,7 @@ beforeEach(() => {
     session,
   })
   mockGetQuestionResults.mockResolvedValue(firstResults)
+  mockGetQuizLeaderboard.mockResolvedValue({ entries: [], totalPlayers: 0 })
   mockResetQuestionResults.mockResolvedValue(undefined)
   mockSetQAndAEntryAnswered.mockResolvedValue(undefined)
   mockSubscribeToQuestionResultSignals.mockImplementation((_questionId, callback) => {
@@ -571,7 +594,7 @@ describe('BigScreen', () => {
 
     renderBigScreen()
 
-    expect(await screen.findByText('25s remaining')).toBeInTheDocument()
+    expect(await screen.findByRole('timer', { name: '25 seconds remaining' })).toBeInTheDocument()
     dateNowSpy.mockRestore()
   })
 
@@ -668,7 +691,7 @@ describe('BigScreen', () => {
     await waitFor(() => expect(screen.getAllByText('Answered')).toHaveLength(2))
   })
 
-  it('renders quiz countdown and leaderboard details', async () => {
+  it('hides per-option counts while a quiz question is still open', async () => {
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-09T00:00:00.000Z').getTime())
 
     mockGetSessionEditorData.mockResolvedValueOnce({
@@ -680,19 +703,96 @@ describe('BigScreen', () => {
       },
     })
     mockGetQuestionResults.mockResolvedValue(quizResults)
+    mockGetQuizLeaderboard.mockResolvedValue({ entries: [], totalPlayers: 5 })
 
     renderBigScreen()
 
-    expect(await screen.findByText(/30s remaining/i)).toBeInTheDocument()
-    expect(screen.getByText('Player 1')).toBeInTheDocument()
-    expect(screen.getByText('Player 2')).toBeInTheDocument()
-    expect(screen.getByText(/correct answer/i)).toBeInTheDocument()
+    expect(await screen.findByRole('timer', { name: /30 seconds remaining/i })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('3 / 5 answered')).toBeInTheDocument())
+    expect(screen.queryByLabelText(/correct answer/i)).not.toBeInTheDocument()
     expect(
       screen.getByRole('heading', {
         name: /which outcome matters most for launch readiness\?/i,
       }),
     ).toBeInTheDocument()
     dateNowSpy.mockRestore()
+  })
+
+  it('reveals the correct answer and cumulative top players once the quiz closes', async () => {
+    mockGetSessionEditorData.mockResolvedValueOnce({
+      questions: [firstQuestion, quizQuestion],
+      session: {
+        ...session,
+        current_question_id: 'question-7',
+        voting_open: false,
+      },
+    })
+    mockGetQuestionResults.mockResolvedValue(quizResults)
+    mockGetQuizLeaderboard.mockResolvedValue({
+      entries: [
+        {
+          correctCount: 1,
+          emoji: '🦊',
+          lastPoints: 920,
+          nickname: 'Brave Fox',
+          participantId: 'participant-1',
+          previousRank: 2,
+          rank: 1,
+          realName: null,
+          score: 1840,
+        },
+      ],
+      totalPlayers: 3,
+    })
+
+    renderBigScreen()
+
+    expect(await screen.findByLabelText(/correct answer/i)).toBeInTheDocument()
+    expect(screen.getByText(/time's up · 3 answered/i)).toBeInTheDocument()
+    expect(await screen.findByText('Brave Fox')).toBeInTheDocument()
+    expect(screen.getByText('+920')).toBeInTheDocument()
+    expect(screen.getByText('▲ 1')).toBeInTheDocument()
+    expect(mockGetQuizLeaderboard).toHaveBeenCalledWith('session-1', 10)
+  })
+
+  it('renders a podium leaderboard slide with opt-in real names', async () => {
+    const podiumQuestion = {
+      config: { podium: true },
+      id: 'question-8',
+      orderIndex: 7,
+      sessionId: 'session-1',
+      title: 'And the winners are…',
+      type: 'leaderboard' as const,
+    }
+
+    mockGetSessionEditorData.mockResolvedValueOnce({
+      questions: [quizQuestion, podiumQuestion],
+      session: {
+        ...session,
+        current_question_id: 'question-8',
+      },
+    })
+    mockGetQuestionResults.mockResolvedValue({
+      config: podiumQuestion.config,
+      questionId: podiumQuestion.id,
+      title: podiumQuestion.title,
+      type: 'leaderboard',
+    })
+    mockGetQuizLeaderboard.mockResolvedValue({
+      entries: [
+        { correctCount: 3, emoji: '🦊', lastPoints: 0, nickname: 'Brave Fox', participantId: 'p1', previousRank: 1, rank: 1, realName: 'Alice Wong', score: 2800 },
+        { correctCount: 2, emoji: '🐼', lastPoints: 0, nickname: 'Sleepy Panda', participantId: 'p2', previousRank: 2, rank: 2, realName: null, score: 1900 },
+      ],
+      totalPlayers: 2,
+    })
+
+    renderBigScreen()
+
+    // The loading state renders the slide title first, so wait for the podium before checking the heading.
+    expect(await screen.findByText('Brave Fox')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /and the winners are/i })).toBeInTheDocument()
+    expect(screen.getByText('Alice Wong')).toBeInTheDocument()
+    expect(screen.getByText('2 players')).toBeInTheDocument()
   })
 
   it('shows the live participant count from presence updates', async () => {

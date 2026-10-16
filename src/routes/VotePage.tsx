@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import ReactionBar from '../components/ReactionBar'
+import NicknameForm from '../components/quiz/NicknameForm'
+import LeaderboardPhone from '../components/questions/Leaderboard/Phone'
 import MultipleChoicePhone from '../components/questions/MultipleChoice/Phone'
 import OpenEndedPhone from '../components/questions/OpenEnded/Phone'
 import QAndAPhone from '../components/questions/QAndA/Phone'
-import QuizPhone from '../components/questions/Quiz/Phone'
+import QuizPhone, { type QuizPhonePhase } from '../components/questions/Quiz/Phone'
 import ScalesPhone from '../components/questions/Scales/Phone'
 import WordCloudPhone from '../components/questions/WordCloud/Phone'
 import {
@@ -13,6 +16,15 @@ import {
   trackAudiencePresence,
 } from '../lib/realtime'
 import { getParticipantId } from '../lib/participantId'
+import {
+  getMyParticipant,
+  getMyQuizStatus,
+  joinSession,
+  roomUsesQuizGame,
+  setParticipantRealName,
+  type MyQuizStatus,
+  type ParticipantProfile,
+} from '../lib/quizGame'
 import {
   getQuestionResults,
   getSessionByCode,
@@ -26,6 +38,7 @@ import {
 } from '../lib/supabaseQueries'
 import type { Tables } from '../types/database'
 import {
+  isLeaderboardQuestion,
   isMultipleChoiceQuestion,
   isOpenEndedQuestion,
   isQAndAQuestion,
@@ -48,7 +61,13 @@ type QAndAResultsState = {
   status: 'error' | 'idle' | 'loading' | 'ready'
 }
 
+type ProfileState = {
+  profile: ParticipantProfile | null
+  sessionId: string | null
+}
+
 const RESULTS_REFRESH_DEBOUNCE_MS = 200
+const QUIZ_REVEAL_RETRY_MS = 1500
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -77,6 +96,12 @@ export default function VotePage() {
   const [submittedSingleResponseQuestionId, setSubmittedSingleResponseQuestionId] = useState<string | null>(null)
   const [wordCloudSuccessQuestionId, setWordCloudSuccessQuestionId] = useState<string | null>(null)
   const [quizRemainingSeconds, setQuizRemainingSeconds] = useState<number | null>(null)
+  const [profileState, setProfileState] = useState<ProfileState>({ profile: null, sessionId: null })
+  const [myQuizStatus, setMyQuizStatus] = useState<MyQuizStatus | null>(null)
+  const [quizStatusRefreshKey, setQuizStatusRefreshKey] = useState(0)
+  const [submittedQuizOption, setSubmittedQuizOption] = useState<{ optionIdx: number; questionId: string } | null>(
+    null,
+  )
 
   useEffect(() => {
     if (!sessionCode) {
@@ -152,8 +177,6 @@ export default function VotePage() {
       }
     }
 
-    const unsubscribePresence = trackAudiencePresence(sessionId, getParticipantId())
-
     const unsubscribeSessionUpdates = subscribeToSessionUpdates(sessionId, (nextSession: Tables<'sessions'>) => {
       setState((currentState) => {
         if (!currentState.sessionData) {
@@ -178,11 +201,53 @@ export default function VotePage() {
 
     return () => {
       isActive = false
-      unsubscribePresence()
       unsubscribeSessionUpdates()
       unsubscribeQuestionChanges()
     }
   }, [sessionCode, state.sessionData?.session.id])
+
+  const sessionId = state.sessionData?.session.id ?? null
+  const requiresProfile = state.sessionData ? roomUsesQuizGame(state.sessionData.questions) : false
+  const isProfileResolved = !requiresProfile || (sessionId !== null && profileState.sessionId === sessionId)
+  const profile = isProfileResolved && profileState.sessionId === sessionId ? profileState.profile : null
+  const presenceNickname = profile?.nickname ?? null
+  const presenceEmoji = profile?.emoji ?? null
+
+  useEffect(() => {
+    if (!sessionId || !requiresProfile) {
+      return
+    }
+
+    let isActive = true
+
+    void getMyParticipant(sessionId)
+      .then((nextProfile) => {
+        if (isActive) {
+          setProfileState({ profile: nextProfile, sessionId })
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setProfileState({ profile: null, sessionId })
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [requiresProfile, sessionId])
+
+  useEffect(() => {
+    if (!sessionId || !isProfileResolved) {
+      return
+    }
+
+    return trackAudiencePresence(
+      sessionId,
+      getParticipantId(),
+      presenceNickname && presenceEmoji ? { emoji: presenceEmoji, nickname: presenceNickname } : null,
+    )
+  }, [isProfileResolved, presenceEmoji, presenceNickname, sessionId])
 
   const currentQuestion = useMemo(() => {
     const questions = state.sessionData?.questions ?? []
@@ -196,6 +261,8 @@ export default function VotePage() {
   const inlineErrorMessage = state.errorMessage ?? qAndAResultsState.errorMessage
   const activeQAndAQuestion = currentQuestion && isQAndAQuestion(currentQuestion) ? currentQuestion : null
   const activeQuizQuestion = currentQuestion && isQuizQuestion(currentQuestion) ? currentQuestion : null
+  const activeLeaderboardQuestion =
+    currentQuestion && isLeaderboardQuestion(currentQuestion) ? currentQuestion : null
 
   useEffect(() => {
     if (!activeQuizQuestion || !state.sessionData?.session.voting_open) {
@@ -235,11 +302,59 @@ export default function VotePage() {
     state.sessionData?.session.voting_open &&
     (quizRemainingSeconds ?? activeQuizQuestion?.config.durationSeconds ?? 0) <= 0
 
+  const shouldTrackQuizStatus = Boolean(profile && (activeQuizQuestion || activeLeaderboardQuestion))
+  const currentQuestionId = currentQuestion?.id ?? null
+  const isVotingOpen = state.sessionData?.session.voting_open ?? false
+  const questionCycleStartedAt = state.sessionData?.session.question_cycle_started_at ?? null
+
+  useEffect(() => {
+    if (!shouldTrackQuizStatus || !sessionId) {
+      return
+    }
+
+    let isActive = true
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    void getMyQuizStatus(sessionId)
+      .then((nextStatus) => {
+        if (!isActive) {
+          return
+        }
+
+        setMyQuizStatus(nextStatus)
+
+        // The phone clock can run slightly ahead of the server; poll until the reveal lands.
+        if (isQuizTimeUp && nextStatus?.currentAnswer && !nextStatus.currentAnswer.revealed) {
+          retryTimer = setTimeout(() => setQuizStatusRefreshKey((key) => key + 1), QUIZ_REVEAL_RETRY_MS)
+        }
+      })
+      .catch(() => {
+        // Keep the last known standing on transient errors.
+      })
+
+    return () => {
+      isActive = false
+
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
+    }
+  }, [
+    currentQuestionId,
+    isQuizTimeUp,
+    isVotingOpen,
+    questionCycleStartedAt,
+    quizStatusRefreshKey,
+    sessionId,
+    shouldTrackQuizStatus,
+  ])
+
   useEffect(() => {
     if (!state.sessionData?.session.question_cycle_started_at) {
       return
     }
 
+    setSubmittedQuizOption(null)
     setSubmittedSingleResponseQuestionId(null)
     setWordCloudSuccessQuestionId(null)
     setQAndASuccessMessage(null)
@@ -474,7 +589,7 @@ export default function VotePage() {
 
     try {
       await submitQuizVote(currentQuestion.id, optionIdx)
-      setSubmittedSingleResponseQuestionId(currentQuestion.id)
+      setSubmittedQuizOption({ optionIdx, questionId: currentQuestion.id })
     } catch (error) {
       setState((currentState) => ({
         ...currentState,
@@ -482,7 +597,31 @@ export default function VotePage() {
       }))
     } finally {
       setIsSubmitting(false)
+      setQuizStatusRefreshKey((key) => key + 1)
     }
+  }
+
+  async function handleJoin(nickname: string, emoji: string) {
+    if (!sessionId) {
+      return
+    }
+
+    const nextProfile = await joinSession(sessionId, nickname, emoji)
+    setProfileState({ profile: nextProfile, sessionId })
+  }
+
+  async function handleSaveRealName(realName: string) {
+    if (!sessionId) {
+      return
+    }
+
+    const nextProfile = await setParticipantRealName(sessionId, realName)
+
+    if (nextProfile) {
+      setProfileState({ profile: nextProfile, sessionId })
+    }
+
+    setQuizStatusRefreshKey((key) => key + 1)
   }
 
   async function handleWordCloudSubmit(word: string) {
@@ -535,16 +674,105 @@ export default function VotePage() {
     )
   }
 
-  if (state.sessionData.session.state !== 'live' || !currentQuestion) {
+  const sessionState = state.sessionData.session.state
+  const reactionBar = sessionState !== 'ended' ? <ReactionBar sessionId={state.sessionData.session.id} /> : null
+
+  if (!isProfileResolved) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+        <p className="text-base text-slate-300">Getting your seat ready…</p>
+      </main>
+    )
+  }
+
+  if (requiresProfile && !profile && sessionState !== 'ended') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-10 text-white">
+        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
+          <NicknameForm onSubmit={handleJoin} roomName={state.sessionData.session.name} />
+        </section>
+      </main>
+    )
+  }
+
+  if (sessionState !== 'live' || !currentQuestion) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 pb-28 text-white">
         <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl">
           <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
-          <h1 className="mt-3 text-3xl font-semibold">Waiting for the presenter to start...</h1>
+          {profile ? (
+            <p className="mentii-pop-in mt-4 text-6xl" aria-hidden="true">
+              {profile.emoji}
+            </p>
+          ) : null}
+          <h1 className="mt-3 text-3xl font-semibold">
+            {profile ? `You're in, ${profile.nickname}!` : 'Waiting for the presenter to start...'}
+          </h1>
           <p className="mt-4 text-base text-slate-300">
-            Keep this page open. The current question will appear here when the session goes live.
+            {profile
+              ? 'Look for your name on the big screen. The first question will appear here when the game starts.'
+              : 'Keep this page open. The current question will appear here when the session goes live.'}
           </p>
         </section>
+        {reactionBar}
+      </main>
+    )
+  }
+
+  if (isQuizQuestion(currentQuestion) || isLeaderboardQuestion(currentQuestion)) {
+    const quizAnswer =
+      myQuizStatus?.currentAnswer?.questionId === currentQuestion.id ? myQuizStatus.currentAnswer : null
+    const submittedOptionIdx =
+      submittedQuizOption?.questionId === currentQuestion.id ? submittedQuizOption.optionIdx : null
+    const quizPhase: QuizPhonePhase =
+      !state.sessionData.session.voting_open || isQuizTimeUp || quizAnswer?.revealed
+        ? 'revealed'
+        : submittedOptionIdx !== null || quizAnswer?.answered
+          ? 'locked'
+          : 'answering'
+
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 pb-28 pt-10 text-white">
+        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
+          <div className="flex items-center justify-between gap-3 text-sm text-slate-300">
+            <span className="uppercase tracking-[0.3em] text-emerald-300">
+              {isQuizQuestion(currentQuestion) ? 'Quiz' : 'Leaderboard'}
+            </span>
+            {profile ? (
+              <span className="truncate">
+                <span aria-hidden="true">{profile.emoji}</span> {profile.nickname}
+              </span>
+            ) : null}
+          </div>
+
+          {isQuizQuestion(currentQuestion) ? (
+            <>
+              <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">{currentQuestion.title}</h1>
+              <div className="mt-6">
+                <QuizPhone
+                  isSubmitting={isSubmitting}
+                  onVote={handleQuizVote}
+                  phase={quizPhase}
+                  question={currentQuestion}
+                  remainingSeconds={quizRemainingSeconds}
+                  status={myQuizStatus}
+                  submittedOptionIdx={submittedOptionIdx}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mt-6">
+              <LeaderboardPhone onSaveRealName={handleSaveRealName} question={currentQuestion} status={myQuizStatus} />
+            </div>
+          )}
+
+          {inlineErrorMessage ? (
+            <p className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+              {inlineErrorMessage}
+            </p>
+          ) : null}
+        </section>
+        {reactionBar}
       </main>
     )
   }
@@ -567,18 +795,19 @@ export default function VotePage() {
     const confirmationTitle = currentQuestion && isOpenEndedQuestion(currentQuestion) ? 'Thanks for sharing! 👍' : 'Thanks for voting! 👍'
 
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 pb-28 text-white">
         <section className="w-full max-w-lg rounded-3xl border border-emerald-300/30 bg-emerald-400/10 p-8 text-center shadow-2xl">
           <p className="text-sm uppercase tracking-[0.3em] text-emerald-200">Audience</p>
           <h1 className="mt-3 text-3xl font-semibold">{confirmationTitle}</h1>
           <p className="mt-4 text-base text-emerald-100">Your response is in. Watch the big screen for the live result.</p>
         </section>
+        {reactionBar}
       </main>
     )
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-10 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 pb-28 pt-10 text-white">
       <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
         <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
         <h1 className="mt-3 text-3xl font-semibold">{currentQuestion.title}</h1>
@@ -608,15 +837,6 @@ export default function VotePage() {
               results={qAndAResultsState.results}
               successMessage={qAndASuccessMessage}
             />
-          ) : isQuizQuestion(currentQuestion) ? (
-            <QuizPhone
-              isSubmitting={isSubmitting}
-              isTimeUp={Boolean(isQuizTimeUp)}
-              isVotingOpen={state.sessionData.session.voting_open}
-              onVote={handleQuizVote}
-              question={currentQuestion}
-              remainingSeconds={quizRemainingSeconds}
-            />
           ) : isScalesQuestion(currentQuestion) ? (
             <ScalesPhone
               isSubmitting={isSubmitting}
@@ -643,6 +863,7 @@ export default function VotePage() {
           </p>
         ) : null}
       </section>
+      {reactionBar}
     </main>
   )
 }

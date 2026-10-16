@@ -34,6 +34,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      participants: {
+        Row: {
+          emoji: string
+          joined_at: string
+          nickname: string
+          participant_id: string
+          real_name: string | null
+          session_id: string
+        }
+        Insert: {
+          emoji?: string
+          joined_at?: string
+          nickname: string
+          participant_id: string
+          real_name?: string | null
+          session_id: string
+        }
+        Update: {
+          emoji?: string
+          joined_at?: string
+          nickname?: string
+          participant_id?: string
+          real_name?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participants_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       q_and_a_entries: {
         Row: {
           answered_at: string | null
@@ -243,9 +278,58 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_view_session: {
+        Args: { target_session_id: string }
+        Returns: boolean
+      }
+      duplicate_room: {
+        Args: { next_room_name: string; source_session_id: string }
+        Returns: string
+      }
+      get_my_participant: { Args: { target_session_id: string }; Returns: Json }
+      get_my_quiz_status: { Args: { target_session_id: string }; Returns: Json }
       get_question_results: {
         Args: { target_question_id: string }
         Returns: Json
+      }
+      get_quiz_leaderboard: {
+        Args: { max_entries?: number; target_session_id: string }
+        Returns: Json
+      }
+      join_session: {
+        Args: {
+          next_emoji: string
+          next_nickname: string
+          target_session_id: string
+        }
+        Returns: Json
+      }
+      participant_profile_json: {
+        Args: { target_participant_id: string; target_session_id: string }
+        Returns: Json
+      }
+      quiz_correct_option_idx: {
+        Args: { question_config: Json }
+        Returns: number
+      }
+      quiz_duration_seconds: {
+        Args: { question_config: Json }
+        Returns: number
+      }
+      quiz_scoreboard: {
+        Args: { target_session_id: string }
+        Returns: {
+          answered_last: boolean
+          correct_count: number
+          emoji: string
+          last_points: number
+          nickname: string
+          participant_id: string
+          previous_rank: number
+          rank: number
+          real_name: string
+          score: number
+        }[]
       }
       reorder_questions: {
         Args: { ordered_question_ids: string[]; target_session_id: string }
@@ -259,6 +343,14 @@ export type Database = {
       reset_question_votes: {
         Args: { target_question_id: string }
         Returns: undefined
+      }
+      reset_session_results: {
+        Args: { target_session_id: string }
+        Returns: undefined
+      }
+      set_participant_real_name: {
+        Args: { next_real_name: string; target_session_id: string }
+        Returns: Json
       }
       set_q_and_a_entry_answered: {
         Args: { next_answered: boolean; target_entry_id: string }

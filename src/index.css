@@ -215,3 +215,67 @@ input {
     display: none;
   }
 }
+
+@keyframes mentii-podium-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes mentii-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes mentii-reaction-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.6);
+  }
+  10% {
+    opacity: 1;
+    transform: translate3d(0, -40px, 0) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--mentii-drift, 0px), -70vh, 0) scale(1);
+  }
+}
+
+.mentii-podium-column {
+  transform-origin: bottom center;
+  animation: mentii-podium-rise 900ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+
+.mentii-pop-in {
+  animation: mentii-pop-in 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.mentii-rise-in {
+  animation: mentii-rise-in 450ms ease-out both;
+}
+
+.mentii-reaction {
+  animation: mentii-reaction-float 3.2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mentii-podium-column,
+  .mentii-pop-in,
+  .mentii-rise-in,
+  .mentii-reaction {
+    animation-duration: 1ms;
+  }
+}

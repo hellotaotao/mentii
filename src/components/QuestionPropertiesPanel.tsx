@@ -1,3 +1,4 @@
+import LeaderboardEditor from './questions/Leaderboard/Editor'
 import MultipleChoiceEditor from './questions/MultipleChoice/Editor'
 import OpenEndedEditor from './questions/OpenEnded/Editor'
 import QAndAEditor from './questions/QAndA/Editor'
@@ -6,6 +7,7 @@ import ScalesEditor from './questions/Scales/Editor'
 import WordCloudEditor from './questions/WordCloud/Editor'
 import type { HostPropertyTab } from './questions/MultipleChoice/editorTabs'
 import {
+  isLeaderboardQuestion,
   isMultipleChoiceQuestion,
   isOpenEndedQuestion,
   isQAndAQuestion,
@@ -160,6 +162,18 @@ export default function QuestionPropertiesPanel({
             }
           })
         }
+        onTabChange={onTabChange}
+        onTitleChange={updateTitle}
+        question={question}
+      />
+    )
+  }
+
+  if (isLeaderboardQuestion(question)) {
+    return (
+      <LeaderboardEditor
+        activeTab={activeTab}
+        onPodiumChange={(podium) => updateConfig(isLeaderboardQuestion, () => ({ podium }))}
         onTabChange={onTabChange}
         onTitleChange={updateTitle}
         question={question}

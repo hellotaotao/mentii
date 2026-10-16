@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Play, Share2, Users } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Play, RotateCcw, Share2, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import QuestionBigScreenPreview from '../components/QuestionBigScreenPreview'
@@ -12,6 +12,7 @@ import {
   deleteQuestion,
   getSessionEditorData,
   reorderQuestions,
+  resetSessionResults,
   updateRoomName,
   updateSession,
   updateQuestion,
@@ -251,6 +252,36 @@ export default function HostConsole() {
       window.open(`/present/${editorData.session.id}`, '_blank', 'noopener,noreferrer')
     } catch (error) {
       mergeSessionUpdate(previousSession)
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  async function handleResetRoom() {
+    if (!editorData) {
+      return
+    }
+
+    const shouldReset = window.confirm(
+      'Reset this room? All responses, quiz scores and player names are cleared and the room goes back to draft. Slides are kept.',
+    )
+
+    if (!shouldReset) {
+      return
+    }
+
+    setErrorMessage(null)
+
+    try {
+      await resetSessionResults(editorData.session.id)
+      const firstQuestionId = editorData.questions[0]?.id ?? null
+      mergeSessionUpdate({
+        current_question_id: firstQuestionId,
+        results_hidden: false,
+        state: 'draft',
+        voting_open: true,
+      })
+      setSelectedQuestionId(firstQuestionId)
+    } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
   }
@@ -569,6 +600,16 @@ export default function HostConsole() {
             >
               <Share2 className="size-4" />
               Share
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700"
+              onClick={() => {
+                void handleResetRoom()
+              }}
+              type="button"
+            >
+              <RotateCcw className="size-4" />
+              Reset room
             </button>
             <button
               className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"

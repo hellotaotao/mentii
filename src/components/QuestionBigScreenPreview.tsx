@@ -1,3 +1,4 @@
+import LeaderboardBigScreen from './questions/Leaderboard/BigScreen'
 import MultipleChoiceBigScreen from './questions/MultipleChoice/BigScreen'
 import OpenEndedBigScreen from './questions/OpenEnded/BigScreen'
 import QAndABigScreen from './questions/QAndA/BigScreen'
@@ -5,6 +6,7 @@ import QuizBigScreen from './questions/Quiz/BigScreen'
 import ScalesBigScreen from './questions/Scales/BigScreen'
 import WordCloudBigScreen from './questions/WordCloud/BigScreen'
 import {
+  isLeaderboardQuestion,
   isMultipleChoiceQuestion,
   isOpenEndedQuestion,
   isQAndAQuestion,
@@ -13,6 +15,21 @@ import {
   isWordCloudQuestion,
   type EditorQuestion,
 } from '../types/questions'
+
+const PREVIEW_LEADERBOARD_ENTRIES = [
+  { emoji: '🦊', nickname: 'Brave Fox', score: 2730 },
+  { emoji: '🐼', nickname: 'Sleepy Panda', score: 2415 },
+  { emoji: '🦉', nickname: 'Witty Owl', score: 1980 },
+  { emoji: '🐙', nickname: 'Funky Octopus', score: 1220 },
+].map((entry, index) => ({
+  ...entry,
+  correctCount: 3 - Math.min(index, 2),
+  lastPoints: 0,
+  participantId: `preview-${index}`,
+  previousRank: index + 1,
+  rank: index + 1,
+  realName: null,
+}))
 
 type QuestionBigScreenPreviewProps = {
   question: EditorQuestion | null
@@ -91,6 +108,15 @@ export default function QuestionBigScreenPreview({ question }: QuestionBigScreen
               })),
               type: 'quiz',
             }}
+          />
+        ) : isLeaderboardQuestion(question) ? (
+          <LeaderboardBigScreen
+            celebrate={false}
+            leaderboard={{
+              entries: PREVIEW_LEADERBOARD_ENTRIES,
+              totalPlayers: PREVIEW_LEADERBOARD_ENTRIES.length,
+            }}
+            question={question}
           />
         ) : isScalesQuestion(question) ? (
           <ScalesBigScreen

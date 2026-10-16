@@ -559,6 +559,35 @@ export async function resetQuestionResults(questionId: string) {
   }
 }
 
+export async function resetSessionResults(sessionId: string) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.rpc('reset_session_results', {
+    target_session_id: sessionId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function duplicateRoom(sourceRoomId: string, roomName: string) {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.rpc('duplicate_room', {
+    next_room_name: normalizeRoomName(roomName),
+    source_session_id: sourceRoomId,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Room duplication did not return a room.')
+  }
+
+  return { roomId: data }
+}
+
 export async function reorderQuestions(sessionId: string, questionIds: string[]) {
   const supabase = getSupabaseClient()
   const { error } = await supabase.rpc('reorder_questions', {

@@ -4,6 +4,7 @@ import {
   FileText,
   GripVertical,
   MessageSquare,
+  Medal,
   Plus,
   SlidersHorizontal,
   Trash2,
@@ -46,6 +47,13 @@ const slideTypeOptions: Array<{
     Icon: Trophy,
     title: 'Quiz',
     type: 'quiz',
+  },
+  {
+    actionLabel: 'Add leaderboard slide',
+    description: 'Show cumulative quiz scores or a final podium.',
+    Icon: Medal,
+    title: 'Leaderboard',
+    type: 'leaderboard',
   },
   {
     actionLabel: 'Add open ended slide',

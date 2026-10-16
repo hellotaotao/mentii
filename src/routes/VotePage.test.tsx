@@ -4,8 +4,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import VotePage from './VotePage'
 
 const {
+  mockGetMyParticipant,
+  mockGetMyQuizStatus,
   mockGetQuestionResults,
   mockGetSessionByCode,
+  mockJoinSession,
+  mockSetParticipantRealName,
   mockSubmitMultipleChoiceVote,
   mockSubmitOpenEndedVote,
   mockSubmitQAndAEntry,
@@ -18,8 +22,12 @@ const {
   mockTrackAudiencePresence,
   mockUpvoteQAndAEntry,
 } = vi.hoisted(() => ({
+  mockGetMyParticipant: vi.fn(),
+  mockGetMyQuizStatus: vi.fn(),
   mockGetQuestionResults: vi.fn(),
   mockGetSessionByCode: vi.fn(),
+  mockJoinSession: vi.fn(),
+  mockSetParticipantRealName: vi.fn(),
   mockSubmitMultipleChoiceVote: vi.fn(),
   mockSubmitOpenEndedVote: vi.fn(),
   mockSubmitQAndAEntry: vi.fn(),
@@ -45,7 +53,17 @@ vi.mock('../lib/supabaseQueries', () => ({
   upvoteQAndAEntry: mockUpvoteQAndAEntry,
 }))
 
-vi.mock('../lib/realtime', () => ({
+vi.mock('../lib/quizGame', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/quizGame')>()),
+  getMyParticipant: mockGetMyParticipant,
+  getMyQuizStatus: mockGetMyQuizStatus,
+  joinSession: mockJoinSession,
+  setParticipantRealName: mockSetParticipantRealName,
+}))
+
+vi.mock('../lib/realtime', async (importOriginal) => ({
+  REACTION_EMOJIS: (await importOriginal<typeof import('../lib/realtime')>()).REACTION_EMOJIS,
+  createReactionSender: () => ({ close: vi.fn(), send: vi.fn() }),
   subscribeToQuestionResultSignals: mockSubscribeToQuestionResultSignals,
   subscribeToSessionQuestionChanges: mockSubscribeToSessionQuestionChanges,
   subscribeToSessionUpdates: mockSubscribeToSessionUpdates,
@@ -223,7 +241,17 @@ function createDeferred<T>() {
   }
 }
 
+const foxProfile = { emoji: '🦊', nickname: 'Brave Fox', realName: null }
+
 beforeEach(() => {
+  mockGetMyParticipant.mockReset()
+  mockGetMyQuizStatus.mockReset()
+  mockJoinSession.mockReset()
+  mockSetParticipantRealName.mockReset()
+  mockGetMyParticipant.mockResolvedValue(foxProfile)
+  mockGetMyQuizStatus.mockResolvedValue(null)
+  mockJoinSession.mockResolvedValue(foxProfile)
+  mockSetParticipantRealName.mockResolvedValue({ ...foxProfile, realName: 'Alice Wong' })
   mockGetQuestionResults.mockReset()
   mockGetSessionByCode.mockReset()
   mockSubmitMultipleChoiceVote.mockReset()
@@ -576,7 +604,34 @@ describe('VotePage', () => {
     await waitFor(() => expect(screen.getByText('4 upvotes')).toBeInTheDocument())
   })
 
-  it('submits a quiz answer and shows the confirmation state', async () => {
+  it('asks for a nickname before joining a quiz room', async () => {
+    mockGetMyParticipant.mockResolvedValue(null)
+    mockGetSessionByCode.mockResolvedValueOnce({
+      questions: [quizQuestion],
+      session: {
+        ...draftSession,
+        current_question_id: 'question-7',
+        name: 'October all-hands',
+      },
+    })
+
+    renderVotePage()
+
+    expect(await screen.findByRole('heading', { name: /pick your player name/i })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Nickname'), { target: { value: 'Brave Fox' } })
+    fireEvent.click(screen.getByRole('button', { name: /avatar 🦊/i }))
+    fireEvent.click(screen.getByRole('button', { name: /let's play/i }))
+
+    await waitFor(() => expect(mockJoinSession).toHaveBeenCalledWith('session-1', 'Brave Fox', '🦊'))
+    expect(await screen.findByRole('heading', { name: /you're in, brave fox!/i })).toBeInTheDocument()
+    expect(mockTrackAudiencePresence).toHaveBeenLastCalledWith('session-1', expect.any(String), {
+      emoji: '🦊',
+      nickname: 'Brave Fox',
+    })
+  })
+
+  it('submits a quiz answer and locks it in until the reveal', async () => {
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-09T00:00:10.000Z').getTime())
 
     mockGetSessionByCode.mockResolvedValueOnce({
@@ -603,13 +658,29 @@ describe('VotePage', () => {
     )
 
     await waitFor(() => expect(mockSubmitQuizVote).toHaveBeenCalledWith('question-7', 1))
-    expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
+    expect(await screen.findByText(/answer locked in/i)).toBeInTheDocument()
+    expect(screen.getByText('“Reliability”')).toBeInTheDocument()
     dateNowSpy.mockRestore()
   })
 
-  it('shows quiz countdown and locks answers after time runs out', async () => {
+  it('reveals the result, points and rank once the quiz timer runs out', async () => {
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-09T00:00:45.000Z').getTime())
 
+    mockGetMyQuizStatus.mockResolvedValue({
+      ...foxProfile,
+      currentAnswer: {
+        answered: true,
+        correct: true,
+        correctOptionIdx: 1,
+        optionIdx: 1,
+        points: 870,
+        questionId: 'question-7',
+        revealed: true,
+      },
+      rank: 2,
+      score: 1740,
+      totalPlayers: 12,
+    })
     mockGetSessionByCode.mockResolvedValueOnce({
       questions: [quizQuestion],
       session: {
@@ -621,23 +692,50 @@ describe('VotePage', () => {
 
     renderVotePage()
 
-    expect(
-      await screen.findByRole('heading', {
-        name: /which outcome matters most for launch readiness\?/i,
-      }),
-    ).toBeInTheDocument()
-    await waitFor(() =>
-      expect(screen.getByText(/time's up\. waiting for the next question\./i)).toBeInTheDocument(),
-    )
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /reliability/i,
-      }),
-    )
-
+    expect(await screen.findByText('Correct!')).toBeInTheDocument()
+    expect(screen.getByText('+870')).toBeInTheDocument()
+    expect(screen.getByText('1,740')).toBeInTheDocument()
+    expect(screen.getByText('2nd')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /reliability/i })).not.toBeInTheDocument()
     expect(mockSubmitQuizVote).not.toHaveBeenCalled()
     dateNowSpy.mockRestore()
+  })
+
+  it('lets podium winners add their real name from the leaderboard slide', async () => {
+    const podiumQuestion = {
+      config: { podium: true },
+      id: 'question-8',
+      orderIndex: 7,
+      sessionId: 'session-1',
+      title: 'Final podium',
+      type: 'leaderboard' as const,
+    }
+
+    mockGetMyQuizStatus.mockResolvedValue({
+      ...foxProfile,
+      currentAnswer: null,
+      rank: 1,
+      score: 2800,
+      totalPlayers: 12,
+    })
+    mockGetSessionByCode.mockResolvedValueOnce({
+      questions: [quizQuestion, podiumQuestion],
+      session: {
+        ...liveSession,
+        current_question_id: 'question-8',
+      },
+    })
+
+    renderVotePage()
+
+    expect(await screen.findByText(/you made the podium/i)).toBeInTheDocument()
+    expect(screen.getByText('1st')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Your name'), { target: { value: 'Alice Wong' } })
+    fireEvent.click(screen.getByRole('button', { name: /show my name/i }))
+
+    await waitFor(() => expect(mockSetParticipantRealName).toHaveBeenCalledWith('session-1', 'Alice Wong'))
+    expect(await screen.findByRole('button', { name: /saved/i })).toBeInTheDocument()
   })
 
   it('refreshes questions when the host adds or edits slides', async () => {

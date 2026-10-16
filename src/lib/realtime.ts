@@ -2,8 +2,29 @@ import type { Tables } from '../types/database'
 import { getSupabaseClient } from './supabase'
 
 type SessionPresencePayload = {
+  emoji?: string
+  nickname?: string
   participantId: string
   role: 'audience'
+}
+
+export type AudienceMember = {
+  emoji: string | null
+  nickname: string | null
+  participantId: string
+}
+
+export type AudienceProfile = {
+  emoji: string
+  nickname: string
+}
+
+export const REACTION_EMOJIS = ['👏', '❤️', '😂', '🔥', '🎉'] as const
+
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number]
+
+function isReactionEmoji(value: unknown): value is ReactionEmoji {
+  return REACTION_EMOJIS.some((emoji) => emoji === value)
 }
 
 export function getSessionChannelTopic(sessionId: string) {
@@ -98,16 +119,30 @@ export function subscribeToQuestionResultSignals(questionId: string, onChange: (
   }
 }
 
-export function subscribeToSessionPresenceCount(sessionId: string, onCountChange: (count: number) => void) {
+export function subscribeToSessionAudience(sessionId: string, onAudienceChange: (members: AudienceMember[]) => void) {
   const channel = getSupabaseClient()
     .channel(getSessionPresenceChannelTopic(sessionId))
     .on('presence', { event: 'sync' }, () => {
       const presenceState = channel.presenceState<SessionPresencePayload>()
-      const participantCount = Object.values(presenceState).reduce((count, presenceEntries) => {
-        return count + (presenceEntries.some((entry) => entry.role === 'audience') ? 1 : 0)
-      }, 0)
+      const members = Object.entries(presenceState).flatMap(([presenceKey, presenceEntries]) => {
+        const audienceEntries = presenceEntries.filter((entry) => entry.role === 'audience')
 
-      onCountChange(participantCount)
+        if (audienceEntries.length === 0) {
+          return []
+        }
+
+        const namedEntry = audienceEntries.find((entry) => entry.nickname) ?? audienceEntries[0]
+
+        return [
+          {
+            emoji: namedEntry.emoji ?? null,
+            nickname: namedEntry.nickname ?? null,
+            participantId: namedEntry.participantId ?? presenceKey,
+          },
+        ]
+      })
+
+      onAudienceChange(members)
     })
     .subscribe()
 
@@ -116,7 +151,49 @@ export function subscribeToSessionPresenceCount(sessionId: string, onCountChange
   }
 }
 
-export function trackAudiencePresence(sessionId: string, participantId: string) {
+export function subscribeToSessionPresenceCount(sessionId: string, onCountChange: (count: number) => void) {
+  return subscribeToSessionAudience(sessionId, (members) => onCountChange(members.length))
+}
+
+export function getSessionReactionsChannelTopic(sessionId: string) {
+  return `${getSessionChannelTopic(sessionId)}:reactions`
+}
+
+export function subscribeToReactions(sessionId: string, onReaction: (emoji: ReactionEmoji) => void) {
+  const channel = getSupabaseClient()
+    .channel(getSessionReactionsChannelTopic(sessionId))
+    .on('broadcast', { event: 'reaction' }, ({ payload }) => {
+      const emoji = (payload as { emoji?: unknown } | null)?.emoji
+
+      if (isReactionEmoji(emoji)) {
+        onReaction(emoji)
+      }
+    })
+    .subscribe()
+
+  return () => {
+    void getSupabaseClient().removeChannel(channel)
+  }
+}
+
+// Phones send reactions over HTTP without joining the channel, so a full room
+// does not fan every reaction out to every other phone.
+export function createReactionSender(sessionId: string) {
+  const channel = getSupabaseClient().channel(getSessionReactionsChannelTopic(sessionId))
+
+  return {
+    close() {
+      void getSupabaseClient().removeChannel(channel)
+    },
+    send(emoji: ReactionEmoji) {
+      void channel.httpSend('reaction', { emoji }).catch(() => {
+        // Reactions are fire-and-forget.
+      })
+    },
+  }
+}
+
+export function trackAudiencePresence(sessionId: string, participantId: string, profile: AudienceProfile | null = null) {
   const channel = getSupabaseClient().channel(getSessionPresenceChannelTopic(sessionId), {
     config: {
       presence: {
@@ -131,9 +208,10 @@ export function trackAudiencePresence(sessionId: string, participantId: string) 
     }
 
     await channel.track({
+      ...(profile ? { emoji: profile.emoji, nickname: profile.nickname } : {}),
       participantId,
       role: 'audience',
-    })
+    } satisfies SessionPresencePayload)
   })
 
   return () => {

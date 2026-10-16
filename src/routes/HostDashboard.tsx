@@ -1,9 +1,10 @@
-import { ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react'
+import { CopyPlus, ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import {
   createRoomWithDefaultQuestion,
   deleteHostRoom,
+  duplicateRoom,
   listHostRooms,
   type HostRoomSummary,
 } from '../lib/supabaseQueries'
@@ -38,6 +39,7 @@ export default function HostDashboard() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
+  const [duplicatingRoomId, setDuplicatingRoomId] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const dateFormatter = useMemo(
@@ -129,6 +131,29 @@ export default function HostDashboard() {
       setErrorMessage(getErrorMessage(error))
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  async function handleDuplicateRoom(room: HostRoomSummary) {
+    if (duplicatingRoomId) {
+      return
+    }
+
+    const nextRoomName = window.prompt('Name for the copy', `${room.name} (copy)`)
+
+    if (nextRoomName === null) {
+      return
+    }
+
+    setErrorMessage(null)
+    setDuplicatingRoomId(room.id)
+
+    try {
+      const { roomId } = await duplicateRoom(room.id, nextRoomName)
+      navigate(`/host/${roomId}`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+      setDuplicatingRoomId(null)
     }
   }
 
@@ -269,6 +294,7 @@ export default function HostDashboard() {
             <ul className="divide-y divide-slate-200">
               {rooms.map((room) => {
                 const isDeleting = deletingRoomId === room.id
+                const isDuplicating = duplicatingRoomId === room.id
 
                 return (
                   <li className="flex flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between" key={room.id}>
@@ -293,6 +319,17 @@ export default function HostDashboard() {
                       >
                         <ExternalLink className="size-4" />
                         Open room
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={Boolean(duplicatingRoomId)}
+                        onClick={() => {
+                          void handleDuplicateRoom(room)
+                        }}
+                        type="button"
+                      >
+                        {isDuplicating ? <Loader2 className="size-4 animate-spin" /> : <CopyPlus className="size-4" />}
+                        {isDuplicating ? 'Duplicating…' : 'Duplicate'}
                       </button>
                       <button
                         className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"

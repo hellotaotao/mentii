@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useParams } from 'react-router-dom'
 import PresenterControls from '../components/PresenterControls'
+import ReactionLayer from '../components/ReactionLayer'
 import SessionCodeBar from '../components/SessionCodeBar'
+import LeaderboardBigScreen from '../components/questions/Leaderboard/BigScreen'
 import MultipleChoiceBigScreen from '../components/questions/MultipleChoice/BigScreen'
 import OpenEndedBigScreen from '../components/questions/OpenEnded/BigScreen'
 import QAndABigScreen from '../components/questions/QAndA/BigScreen'
@@ -10,11 +12,13 @@ import QuizBigScreen from '../components/questions/Quiz/BigScreen'
 import ScalesBigScreen from '../components/questions/Scales/BigScreen'
 import WordCloudBigScreen from '../components/questions/WordCloud/BigScreen'
 import { useQuestionResults } from '../hooks/useQuestionResults'
+import { useQuizLeaderboard } from '../hooks/useQuizLeaderboard'
 import { useSession } from '../hooks/useSession'
-import { subscribeToSessionPresenceCount } from '../lib/realtime'
+import { subscribeToSessionAudience, type AudienceMember } from '../lib/realtime'
 import { buildJoinUrl, formatSessionCode } from '../lib/sessionCode'
 import { resetQuestionResults, setQAndAEntryAnswered, updateSession } from '../lib/supabaseQueries'
 import {
+  isLeaderboardQuestion,
   isMultipleChoiceQuestion,
   isOpenEndedQuestion,
   isQAndAQuestion,
@@ -35,11 +39,42 @@ function createQuestionCycleStartedAt() {
   return new Date().toISOString()
 }
 
+const MAX_WAITING_ROOM_NAMES = 40
+
+function WaitingRoomRoster({ members }: { members: AudienceMember[] }) {
+  const namedMembers = members.filter((member) => member.nickname)
+
+  if (namedMembers.length === 0) {
+    return null
+  }
+
+  const visibleMembers = namedMembers.slice(-MAX_WAITING_ROOM_NAMES).reverse()
+  const hiddenCount = namedMembers.length - visibleMembers.length
+
+  return (
+    <ul aria-label="Players in the room" className="mt-8 flex max-w-5xl flex-wrap justify-center gap-3">
+      {visibleMembers.map((member) => (
+        <li
+          className="mentii-pop-in flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-lg font-medium text-white"
+          key={member.participantId}
+        >
+          <span aria-hidden="true">{member.emoji}</span>
+          {member.nickname}
+        </li>
+      ))}
+      {hiddenCount > 0 ? (
+        <li className="flex items-center rounded-full px-4 py-2 text-lg text-slate-400">{`+${hiddenCount} more`}</li>
+      ) : null}
+    </ul>
+  )
+}
+
 export default function BigScreen() {
   const { sessionId = '' } = useParams()
   const [controlsVisible, setControlsVisible] = useState(false)
   const [controlErrorMessage, setControlErrorMessage] = useState<string | null>(null)
-  const [participantCount, setParticipantCount] = useState(0)
+  const [audienceMembers, setAudienceMembers] = useState<AudienceMember[]>([])
+  const participantCount = audienceMembers.length
   const [qAndAActionEntryId, setQAndAActionEntryId] = useState<string | null>(null)
   const [quizRemainingSeconds, setQuizRemainingSeconds] = useState<number | null>(null)
   const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -64,6 +99,13 @@ export default function BigScreen() {
   const activeQuizCycleStartedAt = activeQuizQuestion ? session?.question_cycle_started_at ?? null : null
   const activeQuizQuestionId = activeQuizQuestion?.id ?? null
   const activeQuizDurationSeconds = activeQuizQuestion?.config.durationSeconds ?? null
+  const isQuizGameSlide = Boolean(currentQuestion && (isQuizQuestion(currentQuestion) || isLeaderboardQuestion(currentQuestion)))
+  const answeredCount = results?.type === 'quiz' ? results.totals.reduce((sum, total) => sum + total.count, 0) : 0
+  const leaderboard = useQuizLeaderboard({
+    enabled: isQuizGameSlide,
+    refreshKey: `${currentQuestion?.id ?? ''}:${session?.voting_open ?? ''}:${quizRemainingSeconds === 0}:${answeredCount}:${session?.question_cycle_started_at ?? ''}`,
+    sessionId: session?.id ?? null,
+  })
 
   const revealControls = useCallback(() => {
     setControlsVisible(true)
@@ -90,7 +132,7 @@ export default function BigScreen() {
       return
     }
 
-    const unsubscribe = subscribeToSessionPresenceCount(sessionId, setParticipantCount)
+    const unsubscribe = subscribeToSessionAudience(sessionId, setAudienceMembers)
 
     return () => {
       unsubscribe()
@@ -292,7 +334,10 @@ export default function BigScreen() {
           {`${participantCount} participant${participantCount === 1 ? '' : 's'} connected`}
         </div>
 
+        <WaitingRoomRoster members={audienceMembers} />
+
         <p className="mt-10 text-sm text-slate-500">Waiting for the presenter to start…</p>
+        <ReactionLayer sessionId={session.id} />
       </main>
     )
   }
@@ -349,10 +394,14 @@ export default function BigScreen() {
         ) : isQuizQuestion(currentQuestion) && results.type === 'quiz' ? (
           <QuizBigScreen
             isVotingOpen={session.voting_open}
+            leaderboard={leaderboard}
+            playerCount={participantCount}
             question={currentQuestion}
             remainingSeconds={quizRemainingSeconds}
             results={results}
           />
+        ) : isLeaderboardQuestion(currentQuestion) ? (
+          <LeaderboardBigScreen leaderboard={leaderboard} question={currentQuestion} />
         ) : isScalesQuestion(currentQuestion) && results.type === 'scales' ? (
           <ScalesBigScreen question={currentQuestion} results={results} />
         ) : isWordCloudQuestion(currentQuestion) && results.type === 'word_cloud' ? (
@@ -372,6 +421,8 @@ export default function BigScreen() {
           {controlErrorMessage}
         </div>
       ) : null}
+
+      <ReactionLayer sessionId={session.id} />
 
       <div className="fixed bottom-6 right-6 z-10 rounded-full border border-white/10 bg-slate-950/85 px-4 py-2 text-sm font-medium text-slate-100 shadow-xl backdrop-blur">
         {`${participantCount} participants`}

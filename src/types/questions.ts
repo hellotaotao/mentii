@@ -7,6 +7,7 @@ export const QUESTION_TYPES = [
   'scales',
   'q_and_a',
   'quiz',
+  'leaderboard',
 ] as const
 
 export type QuestionType = (typeof QUESTION_TYPES)[number]
@@ -39,6 +40,10 @@ export type QuizQuestionConfig = {
   options: string[]
 }
 
+export type LeaderboardQuestionConfig = {
+  podium: boolean
+}
+
 export type GenericQuestionConfig = Record<string, Json | undefined>
 
 type QuestionBase<TType extends QuestionType, TConfig> = {
@@ -56,7 +61,11 @@ export type OpenEndedQuestion = QuestionBase<'open_ended', OpenEndedQuestionConf
 export type ScalesQuestion = QuestionBase<'scales', ScalesQuestionConfig>
 export type QAndAQuestion = QuestionBase<'q_and_a', GenericQuestionConfig>
 export type QuizQuestion = QuestionBase<'quiz', QuizQuestionConfig>
-export type PlaceholderQuestion = QuestionBase<Exclude<QuestionType, 'multiple_choice' | 'word_cloud' | 'open_ended' | 'scales' | 'q_and_a' | 'quiz'>, GenericQuestionConfig>
+export type LeaderboardQuestion = QuestionBase<'leaderboard', LeaderboardQuestionConfig>
+export type PlaceholderQuestion = QuestionBase<
+  Exclude<QuestionType, 'multiple_choice' | 'word_cloud' | 'open_ended' | 'scales' | 'q_and_a' | 'quiz' | 'leaderboard'>,
+  GenericQuestionConfig
+>
 
 export type EditorQuestion =
   | MultipleChoiceQuestion
@@ -65,6 +74,7 @@ export type EditorQuestion =
   | ScalesQuestion
   | QAndAQuestion
   | QuizQuestion
+  | LeaderboardQuestion
   | PlaceholderQuestion
 
 export type MultipleChoiceResultTotal = {
@@ -156,6 +166,13 @@ export type QuizResults = {
   type: 'quiz'
 }
 
+export type LeaderboardResults = {
+  config: LeaderboardQuestionConfig
+  questionId: string
+  title: string
+  type: 'leaderboard'
+}
+
 export type QuestionResults =
   | MultipleChoiceResults
   | WordCloudResults
@@ -163,11 +180,12 @@ export type QuestionResults =
   | ScalesResults
   | QAndAResults
   | QuizResults
+  | LeaderboardResults
   | {
       config: GenericQuestionConfig
       questionId: string
       title: string
-      type: Exclude<QuestionType, 'multiple_choice' | 'word_cloud' | 'open_ended' | 'scales' | 'q_and_a' | 'quiz'>
+      type: Exclude<QuestionType, 'multiple_choice' | 'word_cloud' | 'open_ended' | 'scales' | 'q_and_a' | 'quiz' | 'leaderboard'>
     }
 
 export type SessionEditorData = {
@@ -324,6 +342,12 @@ function parseQuizConfig(config: Json): QuizQuestionConfig {
   }
 }
 
+function parseLeaderboardConfig(config: Json): LeaderboardQuestionConfig {
+  return {
+    podium: isJsonRecord(config) && config.podium === true,
+  }
+}
+
 function parseGenericConfig(config: Json): GenericQuestionConfig {
   return isJsonRecord(config) ? config : {}
 }
@@ -362,7 +386,20 @@ export function createDefaultQuizConfig(): QuizQuestionConfig {
   }
 }
 
+export function createDefaultLeaderboardConfig(): LeaderboardQuestionConfig {
+  return {
+    podium: false,
+  }
+}
+
 export const questionRegistry = {
+  leaderboard: {
+    createDefaultConfig: createDefaultLeaderboardConfig,
+    defaultTitle: 'Leaderboard',
+    hostEditorReady: true,
+    label: 'Leaderboard',
+    type: 'leaderboard',
+  },
   multiple_choice: {
     createDefaultConfig: createDefaultMultipleChoiceConfig,
     defaultTitle: 'Ask your audience a question',
@@ -447,6 +484,10 @@ export function isQAndAQuestion(question: EditorQuestion): question is QAndAQues
 
 export function isQuizQuestion(question: EditorQuestion): question is QuizQuestion {
   return question.type === 'quiz'
+}
+
+export function isLeaderboardQuestion(question: EditorQuestion): question is LeaderboardQuestion {
+  return question.type === 'leaderboard'
 }
 
 export function parseQuestionResults(question: EditorQuestion, results: Json): QuestionResults {
@@ -639,6 +680,15 @@ export function parseQuestionResults(question: EditorQuestion, results: Json): Q
     }
   }
 
+  if (question.type === 'leaderboard') {
+    return {
+      config: question.config,
+      questionId: question.id,
+      title: question.title,
+      type: 'leaderboard',
+    }
+  }
+
   const unreachableQuestion: never = question
   throw new Error(`Unsupported question type: ${String(unreachableQuestion)}`)
 }
@@ -691,6 +741,12 @@ export function mapQuestionRow(row: Tables<'questions'>): EditorQuestion {
         ...baseQuestion,
         config: parseQuizConfig(row.config),
         type: row.type,
+      }
+    case 'leaderboard':
+      return {
+        ...baseQuestion,
+        config: parseLeaderboardConfig(row.config),
+        type: 'leaderboard',
       }
   }
 }
