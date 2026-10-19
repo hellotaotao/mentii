@@ -205,6 +205,7 @@ export type Database = {
           question_cycle_started_at: string
           results_hidden: boolean
           state: string
+          theme: string
           voting_open: boolean
         }
         Insert: {
@@ -217,6 +218,7 @@ export type Database = {
           question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string
+          theme?: string
           voting_open?: boolean
         }
         Update: {
@@ -229,6 +231,7 @@ export type Database = {
           question_cycle_started_at?: string
           results_hidden?: boolean
           state?: string
+          theme?: string
           voting_open?: boolean
         }
         Relationships: [

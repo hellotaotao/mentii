@@ -31,12 +31,12 @@ export default function ReactionBar({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-center gap-1 rounded-full border border-white/10 bg-slate-900/90 px-2 py-1.5 shadow-2xl backdrop-blur">
+      <div className="flex items-center gap-1 rounded-full bg-slide-bg px-2 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-slide-line">
         {REACTION_EMOJIS.map((emoji) => (
           <button
             aria-label={`Send ${emoji} reaction`}
             className={`rounded-full px-2.5 py-1.5 text-2xl transition active:scale-125 ${
-              lastEmoji?.emoji === emoji ? 'bg-white/10' : 'hover:bg-white/10'
+              lastEmoji?.emoji === emoji ? 'bg-slide-subtle' : ''
             }`}
             key={emoji}
             onClick={(event) => handleReaction(emoji, event.timeStamp)}

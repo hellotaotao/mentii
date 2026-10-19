@@ -3,29 +3,17 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useParams } from 'react-router-dom'
 import PresenterControls from '../components/PresenterControls'
 import ReactionLayer from '../components/ReactionLayer'
-import SessionCodeBar from '../components/SessionCodeBar'
-import LeaderboardBigScreen from '../components/questions/Leaderboard/BigScreen'
-import MultipleChoiceBigScreen from '../components/questions/MultipleChoice/BigScreen'
-import OpenEndedBigScreen from '../components/questions/OpenEnded/BigScreen'
-import QAndABigScreen from '../components/questions/QAndA/BigScreen'
-import QuizBigScreen from '../components/questions/Quiz/BigScreen'
-import ScalesBigScreen from '../components/questions/Scales/BigScreen'
-import WordCloudBigScreen from '../components/questions/WordCloud/BigScreen'
+import { SlideChromeProvider, SlideEmptyState, SlideLayout } from '../components/slides/SlideChrome'
+import SlideRenderer from '../components/slides/SlideRenderer'
+import SlideStage from '../components/slides/SlideStage'
 import { useQuestionResults } from '../hooks/useQuestionResults'
 import { useQuizLeaderboard } from '../hooks/useQuizLeaderboard'
 import { useSession } from '../hooks/useSession'
+import { toPresentationTheme } from '../lib/presentationTheme'
 import { subscribeToSessionAudience, type AudienceMember } from '../lib/realtime'
 import { buildJoinUrl, formatSessionCode } from '../lib/sessionCode'
 import { resetQuestionResults, setQAndAEntryAnswered, updateSession } from '../lib/supabaseQueries'
-import {
-  isLeaderboardQuestion,
-  isMultipleChoiceQuestion,
-  isOpenEndedQuestion,
-  isQAndAQuestion,
-  isQuizQuestion,
-  isScalesQuestion,
-  isWordCloudQuestion,
-} from '../types/questions'
+import { isLeaderboardQuestion, isQuizQuestion } from '../types/questions'
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -39,7 +27,7 @@ function createQuestionCycleStartedAt() {
   return new Date().toISOString()
 }
 
-const MAX_WAITING_ROOM_NAMES = 40
+const MAX_WAITING_ROOM_NAMES = 24
 
 function WaitingRoomRoster({ members }: { members: AudienceMember[] }) {
   const namedMembers = members.filter((member) => member.nickname)
@@ -52,10 +40,10 @@ function WaitingRoomRoster({ members }: { members: AudienceMember[] }) {
   const hiddenCount = namedMembers.length - visibleMembers.length
 
   return (
-    <ul aria-label="Players in the room" className="mt-8 flex max-w-5xl flex-wrap justify-center gap-3">
+    <ul aria-label="Players in the room" className="flex flex-wrap content-start gap-3">
       {visibleMembers.map((member) => (
         <li
-          className="mentii-pop-in flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-lg font-medium text-white"
+          className="mentii-pop-in flex items-center gap-2 rounded-full bg-slide-subtle px-5 py-2 text-[24px] font-semibold"
           key={member.participantId}
         >
           <span aria-hidden="true">{member.emoji}</span>
@@ -63,9 +51,40 @@ function WaitingRoomRoster({ members }: { members: AudienceMember[] }) {
         </li>
       ))}
       {hiddenCount > 0 ? (
-        <li className="flex items-center rounded-full px-4 py-2 text-lg text-slate-400">{`+${hiddenCount} more`}</li>
+        <li className="flex items-center px-4 py-2 text-[24px] text-slide-muted">{`+${hiddenCount} more`}</li>
       ) : null}
     </ul>
+  )
+}
+
+function WaitingRoom({ code, members, roomName }: { code: string; members: AudienceMember[]; roomName: string }) {
+  const joinHost = typeof window === 'undefined' ? '' : window.location.host
+
+  return (
+    <div className="grid h-full grid-cols-[minmax(0,1fr)_420px] gap-20 px-24 py-20">
+      <div className="flex min-h-0 flex-col">
+        <p className="text-[30px] font-medium text-slide-muted">{roomName}</p>
+        <h1 className="mt-6 text-[76px] font-bold leading-[1.05] tracking-[-0.03em]">
+          Join at {joinHost}
+        </h1>
+        <p className="mt-4 text-[34px] text-slide-muted">
+          and use the code{' '}
+          <span className="font-bold tabular-nums tracking-[0.06em] text-slide-accent">{formatSessionCode(code)}</span>
+        </p>
+        <div className="mt-14 min-h-0 flex-1 overflow-hidden">
+          <WaitingRoomRoster members={members} />
+        </div>
+        <p className="text-[26px] font-medium tabular-nums text-slide-muted">
+          {`${members.length} ${members.length === 1 ? 'person has' : 'people have'} joined`}
+        </p>
+      </div>
+      <div className="flex flex-col items-center justify-center">
+        <div className="rounded-[36px] bg-white p-8 shadow-[0_20px_60px_rgba(28,18,12,0.12)]">
+          <QRCodeSVG aria-label="Session QR code" size={320} value={buildJoinUrl(code)} />
+        </div>
+        <p className="mt-6 text-[24px] text-slide-muted">Scan to join</p>
+      </div>
+    </div>
   )
 }
 
@@ -301,134 +320,78 @@ export default function BigScreen() {
     session,
   ])
 
+  const presentationTheme = toPresentationTheme(session?.theme)
+
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-amber-300">Big screen</p>
-          <h1 className="mt-3 text-3xl font-semibold">Loading presentation…</h1>
-          <p className="mt-4 text-sm text-slate-300">Fetching the live session, current slide, and vote totals.</p>
-        </section>
-      </main>
-    )
-  }
-
-  if (status === 'ready' && session && session.state !== 'live') {
-    const joinUrl = buildJoinUrl(session.code)
-
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 text-white">
-        <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Mentii</p>
-        <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Join the session</h1>
-        <p className="mt-3 text-lg text-slate-300">Scan the QR code or enter the code on your phone.</p>
-
-        <div className="mt-10 rounded-3xl bg-white p-5">
-          <QRCodeSVG aria-label="Session QR code" size={220} value={joinUrl} />
-        </div>
-
-        <p className="mt-8 text-5xl font-bold tracking-[0.5em] sm:text-6xl">
-          {formatSessionCode(session.code)}
-        </p>
-
-        <div className="mt-6 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-slate-300">
-          {`${participantCount} participant${participantCount === 1 ? '' : 's'} connected`}
-        </div>
-
-        <WaitingRoomRoster members={audienceMembers} />
-
-        <p className="mt-10 text-sm text-slate-500">Waiting for the presenter to start…</p>
-        <ReactionLayer sessionId={session.id} />
+      <main className="slide-theme-light flex min-h-screen items-center justify-center bg-slide-bg text-slide-muted">
+        <p className="text-lg">Loading presentation…</p>
       </main>
     )
   }
 
   if (status === 'error' || !session || !currentQuestion) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-md rounded-3xl border border-rose-300/30 bg-rose-400/10 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-rose-200">Big screen</p>
-          <h1 className="mt-3 text-3xl font-semibold">Unable to load the presentation</h1>
-          <p className="mt-4 text-sm text-rose-100">{errorMessage ?? 'Try refreshing the page.'}</p>
+      <main className="flex min-h-screen items-center justify-center bg-app px-6 text-ink">
+        <section className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 shadow-sm">
+          <h1 className="text-2xl font-semibold">This presentation could not be loaded</h1>
+          <p className="mt-3 text-ink-2">{errorMessage ?? 'Check the link, then refresh the page.'}</p>
         </section>
       </main>
     )
   }
 
+  const isLive = session.state === 'live'
+
   return (
     <main
-      className="flex min-h-screen flex-col bg-slate-950 text-white"
+      className={`slide-theme-${presentationTheme} h-screen w-screen overflow-hidden bg-slide-bg`}
       data-testid="big-screen-shell"
       onMouseMove={() => {
         revealControls()
       }}
     >
-      <SessionCodeBar code={session.code} />
+      <SlideChromeProvider joinCode={session.code}>
+        <SlideStage className="h-full w-full" theme={presentationTheme}>
+          {!isLive ? (
+            <WaitingRoom code={session.code} members={audienceMembers} roomName={session.name} />
+          ) : session.results_hidden ? (
+            <SlideLayout title={currentQuestion.title}>
+              <SlideEmptyState>Results are hidden for now.</SlideEmptyState>
+            </SlideLayout>
+          ) : resultsStatus === 'error' ? (
+            <SlideLayout title={currentQuestion.title}>
+              <SlideEmptyState>{resultsErrorMessage ?? 'Live results could not be loaded. Refresh the page.'}</SlideEmptyState>
+            </SlideLayout>
+          ) : (resultsStatus === 'loading' || !results) && !isLeaderboardQuestion(currentQuestion) ? (
+            <SlideLayout title={currentQuestion.title}>
+              <SlideEmptyState>Loading responses…</SlideEmptyState>
+            </SlideLayout>
+          ) : (
+            <SlideRenderer
+              celebrate
+              isVotingOpen={session.voting_open}
+              leaderboard={leaderboard}
+              onToggleQAndAAnswered={handleToggleQAndAAnswered}
+              playerCount={participantCount}
+              qAndAActionEntryId={qAndAActionEntryId}
+              question={currentQuestion}
+              quizRemainingSeconds={quizRemainingSeconds}
+              results={results}
+            />
+          )}
+        </SlideStage>
+      </SlideChromeProvider>
 
-      <section className="flex flex-1 items-center justify-center px-6 py-10 pt-24 sm:px-8 sm:pt-28">
-        {session.results_hidden ? (
-          <div className="w-full max-w-2xl rounded-[32px] border border-white/10 bg-white/5 p-10 text-center">
-            <h2 className="text-3xl font-semibold">{currentQuestion.title}</h2>
-            <p className="mt-4 text-base text-slate-300">Results are hidden while the presenter speaks.</p>
-          </div>
-        ) : resultsStatus === 'error' ? (
-          <div className="w-full max-w-2xl rounded-[32px] border border-rose-300/30 bg-rose-400/10 p-10 text-center">
-            <h2 className="text-3xl font-semibold">Unable to load live results</h2>
-            <p className="mt-4 text-base text-rose-100">{resultsErrorMessage ?? 'Try refreshing the page.'}</p>
-          </div>
-        ) : resultsStatus === 'loading' || !results ? (
-          <div className="w-full max-w-2xl rounded-[32px] border border-white/10 bg-white/5 p-10 text-center">
-            <h2 className="text-3xl font-semibold">{currentQuestion.title}</h2>
-            <p className="mt-4 text-base text-slate-300">Loading the latest audience responses…</p>
-          </div>
-        ) : isMultipleChoiceQuestion(currentQuestion) && results.type === 'multiple_choice' ? (
-          <MultipleChoiceBigScreen question={currentQuestion} results={results} />
-        ) : isOpenEndedQuestion(currentQuestion) && results.type === 'open_ended' ? (
-          <OpenEndedBigScreen question={currentQuestion} results={results} />
-        ) : isQAndAQuestion(currentQuestion) && results.type === 'q_and_a' ? (
-          <QAndABigScreen
-            actionEntryId={qAndAActionEntryId}
-            onToggleAnswered={handleToggleQAndAAnswered}
-            question={currentQuestion}
-            results={results}
-          />
-        ) : isQuizQuestion(currentQuestion) && results.type === 'quiz' ? (
-          <QuizBigScreen
-            isVotingOpen={session.voting_open}
-            leaderboard={leaderboard}
-            playerCount={participantCount}
-            question={currentQuestion}
-            remainingSeconds={quizRemainingSeconds}
-            results={results}
-          />
-        ) : isLeaderboardQuestion(currentQuestion) ? (
-          <LeaderboardBigScreen leaderboard={leaderboard} question={currentQuestion} />
-        ) : isScalesQuestion(currentQuestion) && results.type === 'scales' ? (
-          <ScalesBigScreen question={currentQuestion} results={results} />
-        ) : isWordCloudQuestion(currentQuestion) && results.type === 'word_cloud' ? (
-          <WordCloudBigScreen question={currentQuestion} results={results} />
-        ) : (
-          <div className="w-full max-w-2xl rounded-[32px] border border-white/10 bg-white/5 p-10 text-center">
-            <h2 className="text-3xl font-semibold">{currentQuestion.title}</h2>
-            <p className="mt-4 text-base text-slate-300">
-              This question type will receive its big-screen renderer in a later phase.
-            </p>
-          </div>
-        )}
-      </section>
+      <ReactionLayer sessionId={session.id} />
 
       {controlErrorMessage ? (
-        <div className="fixed right-6 top-28 z-20 rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+        <div className="fixed left-1/2 top-5 z-40 -translate-x-1/2 rounded-full bg-danger px-5 py-2 text-sm font-medium text-white shadow-lg">
           {controlErrorMessage}
         </div>
       ) : null}
 
-      <ReactionLayer sessionId={session.id} />
-
-      <div className="fixed bottom-6 right-6 z-10 rounded-full border border-white/10 bg-slate-950/85 px-4 py-2 text-sm font-medium text-slate-100 shadow-xl backdrop-blur">
-        {`${participantCount} participants`}
-      </div>
-
-      {controlsVisible ? (
+      {controlsVisible && isLive ? (
         <PresenterControls
           canGoNext={Boolean(nextQuestion)}
           canGoPrevious={Boolean(previousQuestion)}
@@ -459,10 +422,13 @@ export default function BigScreen() {
               voting_open: !session.voting_open,
             })
           }}
+          participantCount={participantCount}
           resultsHidden={session.results_hidden}
+          slidePosition={{ current: currentQuestionIndex + 1, total: questions.length }}
           votingOpen={session.voting_open}
         />
       ) : null}
     </main>
   )
 }
+

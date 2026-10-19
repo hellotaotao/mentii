@@ -1,13 +1,5 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  Expand,
-  Lock,
-  RotateCcw,
-  Unlock,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Expand, Lock, RotateCcw, Unlock, Users } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 type PresenterControlsProps = {
   canGoNext: boolean
@@ -18,8 +10,37 @@ type PresenterControlsProps = {
   onToggleFullscreen: () => void
   onToggleResults: () => void
   onToggleVoting: () => void
+  participantCount?: number
   resultsHidden: boolean
+  slidePosition?: { current: number; total: number }
   votingOpen: boolean
+}
+
+function ToolbarButton({
+  children,
+  disabled = false,
+  label,
+  onClick,
+  shortcut,
+}: {
+  children: ReactNode
+  disabled?: boolean
+  label: string
+  onClick: () => void
+  shortcut?: string
+}) {
+  return (
+    <button
+      aria-label={label}
+      className="flex size-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/12 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:pointer-events-none disabled:opacity-35"
+      disabled={disabled}
+      onClick={onClick}
+      title={shortcut ? `${label} (${shortcut})` : label}
+      type="button"
+    >
+      {children}
+    </button>
+  )
 }
 
 export default function PresenterControls({
@@ -31,72 +52,54 @@ export default function PresenterControls({
   onToggleFullscreen,
   onToggleResults,
   onToggleVoting,
+  participantCount,
   resultsHidden,
+  slidePosition,
   votingOpen,
 }: PresenterControlsProps) {
   return (
-    <div className="fixed inset-x-0 bottom-6 z-20 flex justify-center px-4">
+    <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
       <div
         aria-label="Presenter controls"
-        className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-slate-950/90 px-3 py-3 shadow-2xl backdrop-blur"
+        className="flex items-center gap-1 rounded-full bg-[#1c120c]/90 px-2 py-1.5 text-sm text-white shadow-2xl ring-1 ring-white/10 backdrop-blur"
         role="toolbar"
       >
-        <button
-          aria-label="Previous slide"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!canGoPrevious}
-          onClick={onPrevious}
-          type="button"
-        >
-          <ChevronLeft className="size-4" />
-          Previous slide
-        </button>
-        <button
-          aria-label="Next slide"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!canGoNext}
-          onClick={onNext}
-          type="button"
-        >
-          Next slide
-          <ChevronRight className="size-4" />
-        </button>
-        <button
-          aria-label={resultsHidden ? 'Show results' : 'Hide results'}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-          onClick={onToggleResults}
-          type="button"
-        >
-          {resultsHidden ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          {resultsHidden ? 'Show results' : 'Hide results'}
-        </button>
-        <button
-          aria-label={votingOpen ? 'Close voting' : 'Open voting'}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-          onClick={onToggleVoting}
-          type="button"
-        >
-          {votingOpen ? <Lock className="size-4" /> : <Unlock className="size-4" />}
-          {votingOpen ? 'Close voting' : 'Open voting'}
-        </button>
-        <button
-          aria-label="Reset results"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-          onClick={onResetResults}
-          type="button"
-        >
-          <RotateCcw className="size-4" />
-          Reset results
-        </button>
-        <button
-          aria-label="Fullscreen"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-          onClick={onToggleFullscreen}
-          type="button"
-        >
-          <Expand className="size-4" />
-          Fullscreen
-        </button>
+        <ToolbarButton disabled={!canGoPrevious} label="Previous slide" onClick={onPrevious} shortcut="←">
+          <ChevronLeft className="size-5" />
+        </ToolbarButton>
+        {slidePosition ? (
+          <span className="min-w-14 text-center font-medium tabular-nums text-white/80">
+            {`${slidePosition.current} / ${slidePosition.total}`}
+          </span>
+        ) : null}
+        <ToolbarButton disabled={!canGoNext} label="Next slide" onClick={onNext} shortcut="→">
+          <ChevronRight className="size-5" />
+        </ToolbarButton>
+
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-white/15" />
+
+        <ToolbarButton label={resultsHidden ? 'Show results' : 'Hide results'} onClick={onToggleResults} shortcut="H">
+          {resultsHidden ? <Eye className="size-[18px]" /> : <EyeOff className="size-[18px]" />}
+        </ToolbarButton>
+        <ToolbarButton label={votingOpen ? 'Close voting' : 'Open voting'} onClick={onToggleVoting}>
+          {votingOpen ? <Lock className="size-[18px]" /> : <Unlock className="size-[18px]" />}
+        </ToolbarButton>
+        <ToolbarButton label="Reset results" onClick={onResetResults} shortcut="R">
+          <RotateCcw className="size-[18px]" />
+        </ToolbarButton>
+        <ToolbarButton label="Fullscreen" onClick={onToggleFullscreen} shortcut="F">
+          <Expand className="size-[18px]" />
+        </ToolbarButton>
+
+        {participantCount !== undefined ? (
+          <>
+            <span aria-hidden="true" className="mx-1 h-5 w-px bg-white/15" />
+            <span className="flex items-center gap-1.5 px-2 font-medium tabular-nums text-white/80">
+              <Users aria-hidden="true" className="size-4" />
+              {participantCount}
+            </span>
+          </>
+        ) : null}
       </div>
     </div>
   )

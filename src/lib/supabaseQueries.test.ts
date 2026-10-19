@@ -101,7 +101,7 @@ describe('supabaseQueries', () => {
 
     const result = await listHostRooms('host-1')
 
-    expect(selectMock).toHaveBeenCalledWith('id, code, name, state, created_at')
+    expect(selectMock).toHaveBeenCalledWith('id, code, name, state, theme, created_at')
     expect(eqMock).toHaveBeenCalledWith('host_id', 'host-1')
     expect(orderMock).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(result).toEqual([
@@ -137,7 +137,7 @@ describe('supabaseQueries', () => {
     const eqWithNameMock = vi.fn().mockReturnValue({ order: orderWithNameMock })
     const eqLegacyMock = vi.fn().mockReturnValue({ order: orderLegacyMock })
     const selectMock = vi.fn().mockImplementation((fields: string) => {
-      if (fields === 'id, code, name, state, created_at') {
+      if (fields === 'id, code, name, state, theme, created_at') {
         return { eq: eqWithNameMock }
       }
 
@@ -158,7 +158,7 @@ describe('supabaseQueries', () => {
 
     const result = await listHostRooms('host-1')
 
-    expect(selectMock).toHaveBeenCalledWith('id, code, name, state, created_at')
+    expect(selectMock).toHaveBeenCalledWith('id, code, name, state, theme, created_at')
     expect(selectMock).toHaveBeenCalledWith('id, code, state, created_at')
     expect(result).toEqual([
       {
@@ -166,6 +166,7 @@ describe('supabaseQueries', () => {
         created_at: '2026-04-09T00:00:00.000Z',
         id: 'session-1',
         name: 'Room 482176',
+        theme: 'light',
         state: 'draft',
       },
     ])

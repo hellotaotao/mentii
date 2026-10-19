@@ -60,6 +60,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
+// For shared brand components that may render outside the provider (e.g. in tests).
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalTheme(): Theme {
+  return useContext(ThemeContext)?.theme ?? THEMES[DEFAULT_THEME_ID]
+}
+
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext)
   if (!ctx) {

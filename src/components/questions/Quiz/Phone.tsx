@@ -17,15 +17,15 @@ type QuizPhoneProps = {
 function StandingLine({ status }: { status: MyQuizStatus }) {
   return (
     <div className="mt-6 grid grid-cols-2 gap-3 text-center">
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Score</p>
+      <div className="rounded-2xl border border-slide-line bg-slide-subtle px-4 py-3">
+        <p className="text-[13px] font-medium text-slide-muted">Score</p>
         <p className="mt-1 text-2xl font-bold tabular-nums">{formatPoints(status.score)}</p>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Rank</p>
+      <div className="rounded-2xl border border-slide-line bg-slide-subtle px-4 py-3">
+        <p className="text-[13px] font-medium text-slide-muted">Rank</p>
         <p className="mt-1 text-2xl font-bold tabular-nums">
           {status.rank > 0 ? `${formatRank(status.rank)}` : '–'}
-          <span className="text-base font-medium text-slate-400">{` / ${status.totalPlayers}`}</span>
+          <span className="text-base font-medium text-slide-muted">{` / ${status.totalPlayers}`}</span>
         </p>
       </div>
     </div>
@@ -42,7 +42,7 @@ function RevealCard({ question, status }: { question: QuizQuestion; status: MyQu
           ⏳
         </p>
         <p className="mt-4 text-xl font-semibold">Time&apos;s up!</p>
-        <p className="mt-2 text-slate-300">Revealing the answer…</p>
+        <p className="mt-2 text-slide-muted">Revealing the answer…</p>
       </div>
     )
   }
@@ -57,7 +57,7 @@ function RevealCard({ question, status }: { question: QuizQuestion; status: MyQu
           🐢
         </p>
         <p className="mt-4 text-2xl font-semibold">Too slow this time</p>
-        {correctLabel ? <p className="mt-2 text-slate-300">{`The answer was “${correctLabel}”.`}</p> : null}
+        {correctLabel ? <p className="mt-2 text-slide-muted">{`The answer was “${correctLabel}”.`}</p> : null}
         <StandingLine status={status} />
       </div>
     )
@@ -66,7 +66,7 @@ function RevealCard({ question, status }: { question: QuizQuestion; status: MyQu
   return (
     <div
       className={`mentii-pop-in rounded-3xl p-6 text-center ${
-        answer.correct ? 'bg-emerald-500/20 ring-1 ring-emerald-300/40' : 'bg-rose-500/15 ring-1 ring-rose-300/30'
+        answer.correct ? 'bg-[color-mix(in_srgb,var(--slide-c4)_14%,transparent)]' : 'bg-[color-mix(in_srgb,var(--slide-c6)_12%,transparent)]'
       }`}
     >
       <p className="text-6xl" aria-hidden="true">
@@ -74,9 +74,9 @@ function RevealCard({ question, status }: { question: QuizQuestion; status: MyQu
       </p>
       <p className="mt-3 text-3xl font-bold">{answer.correct ? 'Correct!' : 'Not quite'}</p>
       {answer.correct ? (
-        <p className="mt-2 text-2xl font-semibold text-emerald-200">{`+${formatPoints(answer.points ?? 0)}`}</p>
+        <p className="mt-2 text-2xl font-semibold text-[var(--slide-c4)]">{`+${formatPoints(answer.points ?? 0)}`}</p>
       ) : correctLabel ? (
-        <p className="mt-2 text-slate-200">{`The answer was “${correctLabel}”.`}</p>
+        <p className="mt-2 text-slide-fg">{`The answer was “${correctLabel}”.`}</p>
       ) : null}
       <StandingLine status={status} />
     </div>
@@ -110,10 +110,10 @@ export default function QuizPhone({
           </div>
         ) : null}
         <p className="mt-5 text-2xl font-semibold">Answer locked in</p>
-        <p className="mt-2 text-slate-300">
+        <p className="mt-2 text-slide-muted">
           {lockedIdx !== null ? `“${question.config.options[lockedIdx]}”` : 'Waiting for everyone else…'}
         </p>
-        <p className="mt-6 text-sm tabular-nums text-slate-400">
+        <p className="mt-6 text-sm tabular-nums text-slide-muted">
           {remainingSeconds !== null ? `${remainingSeconds}s left` : 'Waiting for the reveal…'}
         </p>
       </div>
@@ -126,15 +126,15 @@ export default function QuizPhone({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slide-line">
           <div
             className={`h-full rounded-full transition-[width] duration-300 ease-linear ${
-              secondsLeft <= 5 ? 'bg-rose-400' : 'bg-cyan-400'
+              secondsLeft <= 5 ? 'bg-[var(--slide-c6)]' : 'bg-slide-accent'
             }`}
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <span className="w-10 text-right text-sm font-semibold tabular-nums text-slate-200">{`${secondsLeft}s`}</span>
+        <span className="w-10 text-right text-sm font-semibold tabular-nums text-slide-fg">{`${secondsLeft}s`}</span>
       </div>
 
       <div className="grid grid-cols-1 gap-3">

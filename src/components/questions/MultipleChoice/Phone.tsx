@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { MultipleChoiceQuestion } from '../../../types/questions'
+import { PhoneButton } from '../../audience/PhoneUI'
 
 type MultipleChoicePhoneProps = {
   isSubmitting: boolean
@@ -6,25 +8,46 @@ type MultipleChoicePhoneProps = {
   question: MultipleChoiceQuestion
 }
 
-export default function MultipleChoicePhone({
-  isSubmitting,
-  onVote,
-  question,
-}: MultipleChoicePhoneProps) {
+export default function MultipleChoicePhone({ isSubmitting, onVote, question }: MultipleChoicePhoneProps) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+
   return (
-    <div className="space-y-3">
-      {question.config.options.map((option, optionIdx) => (
-        <button
-          className="flex w-full items-center justify-between rounded-3xl border border-white/10 bg-white/10 px-5 py-4 text-left text-base font-medium text-white transition hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
-          key={`${question.id}-phone-option-${optionIdx}`}
-          onClick={() => onVote(optionIdx)}
-          type="button"
-        >
-          <span>{option}</span>
-          <span className="text-sm uppercase tracking-[0.3em] text-slate-400">{optionIdx + 1}</span>
-        </button>
-      ))}
+    <div className="space-y-6">
+      <div className="space-y-3" role="radiogroup" aria-label="Answer options">
+        {question.config.options.map((option, optionIdx) => {
+          const isSelected = selectedIdx === optionIdx
+
+          return (
+            <button
+              aria-checked={isSelected}
+              className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left text-[17px] font-medium transition ${
+                isSelected
+                  ? 'border-slide-accent bg-[color-mix(in_srgb,var(--slide-accent)_8%,transparent)]'
+                  : 'border-slide-line'
+              }`}
+              disabled={isSubmitting}
+              key={`${question.id}-phone-option-${optionIdx}`}
+              onClick={() => setSelectedIdx(optionIdx)}
+              role="radio"
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                  isSelected ? 'border-slide-accent' : 'border-slide-line'
+                }`}
+              >
+                {isSelected ? <span className="size-2.5 rounded-full bg-slide-accent" /> : null}
+              </span>
+              {option}
+            </button>
+          )
+        })}
+      </div>
+
+      <PhoneButton disabled={isSubmitting || selectedIdx === null} onClick={() => selectedIdx !== null && onVote(selectedIdx)}>
+        {isSubmitting ? 'Submitting…' : 'Submit'}
+      </PhoneButton>
     </div>
   )
 }

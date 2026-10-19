@@ -28,6 +28,7 @@ vi.mock('../lib/supabaseQueries', () => ({
   deleteQuestion: mockDeleteQuestion,
   getSessionEditorData: mockGetSessionEditorData,
   reorderQuestions: mockReorderQuestions,
+  resetSessionResults: vi.fn(),
   updateRoomName: mockUpdateRoomName,
   updateSession: mockUpdateSession,
   updateQuestion: mockUpdateQuestion,
@@ -35,7 +36,11 @@ vi.mock('../lib/supabaseQueries', () => ({
 
 vi.mock('../lib/realtime', () => ({
   subscribeToSessionPresenceCount: mockSubscribeToSessionPresenceCount,
+  subscribeToSessionUpdates: () => () => {},
 }))
+
+// The slide title field is labelled by slide type (question, statement, prompt).
+const TITLE_FIELD = /^(question|statement|prompt|heading)$/i
 
 const hostUser = {
   id: 'host-1',
@@ -202,7 +207,7 @@ describe('HostConsole', () => {
   it('navigates back to the host dashboard', async () => {
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /back to rooms/i }))
 
@@ -226,7 +231,7 @@ describe('HostConsole', () => {
   it('loads the host console for an existing session', async () => {
     renderHostConsole('/host/session-1')
 
-    expect(await screen.findByLabelText(/question title/i)).toHaveValue(firstQuestion.title)
+    expect(await screen.findByLabelText(TITLE_FIELD)).toHaveValue(firstQuestion.title)
     expect(mockGetSessionEditorData).toHaveBeenCalledWith('session-1')
     expect(screen.getByText('4821 76')).toBeInTheDocument()
     expect(
@@ -239,16 +244,16 @@ describe('HostConsole', () => {
   it('lets the host select a slide, edit content, and persist changes', async () => {
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(
       screen.getByRole('button', {
         name: /slide 2: which team should receive the next headcount\?/i,
       }),
     )
-    expect(screen.getByLabelText(/question title/i)).toHaveValue(secondQuestion.title)
+    expect(screen.getByLabelText(TITLE_FIELD)).toHaveValue(secondQuestion.title)
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'Which team should get the next headcount?' },
     })
 
@@ -276,10 +281,7 @@ describe('HostConsole', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
-    fireEvent.change(screen.getByLabelText(/chart style/i), {
-      target: { value: 'pie' },
-    })
+    fireEvent.click(screen.getByRole('radio', { name: /pie/i }))
 
     await waitFor(() =>
       expect(mockUpdateQuestion).toHaveBeenLastCalledWith('question-2', {
@@ -301,7 +303,7 @@ describe('HostConsole', () => {
   it('adds, reorders, and deletes slides', async () => {
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add multiple choice slide/i }))
@@ -361,7 +363,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add multiple choice slide/i }))
@@ -402,7 +404,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /present/i }))
 
@@ -427,7 +429,7 @@ describe('HostConsole', () => {
         voting_open: true,
       }),
     )
-    expect(screen.getByLabelText(/question title/i)).toHaveValue(secondQuestion.title)
+    expect(screen.getByLabelText(TITLE_FIELD)).toHaveValue(secondQuestion.title)
 
     openWindowMock.mockRestore()
   })
@@ -437,7 +439,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add word cloud slide/i }))
@@ -451,7 +453,7 @@ describe('HostConsole', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'Describe today in one word' },
     })
 
@@ -464,7 +466,6 @@ describe('HostConsole', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
     fireEvent.click(screen.getByLabelText(/allow repeated submissions/i))
 
     await waitFor(() =>
@@ -482,7 +483,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add open ended slide/i }))
@@ -496,7 +497,7 @@ describe('HostConsole', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'What would make the next sprint smoother?' },
     })
 
@@ -509,7 +510,6 @@ describe('HostConsole', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
     fireEvent.change(screen.getByLabelText(/maximum response length/i), {
       target: { value: '400' },
     })
@@ -529,7 +529,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add scales slide/i }))
@@ -541,7 +541,7 @@ describe('HostConsole', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'How clear was the strategy update?' },
     })
 
@@ -555,7 +555,6 @@ describe('HostConsole', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
     fireEvent.change(screen.getByLabelText(/left label/i), {
       target: { value: 'Still fuzzy' },
     })
@@ -590,7 +589,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add q&a slide/i }))
@@ -602,7 +601,7 @@ describe('HostConsole', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'What questions should we tackle first?' },
     })
 
@@ -619,7 +618,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /add slide/i }))
     fireEvent.click(screen.getByRole('button', { name: /add quiz slide/i }))
@@ -631,7 +630,7 @@ describe('HostConsole', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/question title/i), {
+    fireEvent.change(screen.getByLabelText(TITLE_FIELD), {
       target: { value: 'Which outcome matters most this release?' },
     })
 
@@ -661,11 +660,8 @@ describe('HostConsole', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /customize/i }))
-    fireEvent.change(screen.getByLabelText(/correct answer/i), {
-      target: { value: '2' },
-    })
-    fireEvent.change(screen.getByLabelText(/countdown seconds/i), {
+    fireEvent.click(screen.getByRole('button', { name: /mark option 3 as correct/i }))
+    fireEvent.change(screen.getByLabelText(/time to answer/i), {
       target: { value: '45' },
     })
 
@@ -693,7 +689,7 @@ describe('HostConsole', () => {
 
     renderHostConsole('/host/session-1')
 
-    await screen.findByLabelText(/question title/i)
+    await screen.findByLabelText(TITLE_FIELD)
 
     fireEvent.click(screen.getByRole('button', { name: /preview/i }))
     expect(openWindowMock).toHaveBeenCalledWith('/present/session-1', '_blank', 'noopener,noreferrer')

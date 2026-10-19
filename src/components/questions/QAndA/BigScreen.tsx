@@ -1,4 +1,6 @@
+import { Check, ThumbsUp } from 'lucide-react'
 import type { QAndAQuestion, QAndAResults } from '../../../types/questions'
+import { ResponseCount, SlideEmptyState, SlideLayout } from '../../slides/SlideChrome'
 
 type QAndABigScreenProps = {
   actionEntryId: string | null
@@ -7,64 +9,57 @@ type QAndABigScreenProps = {
   results: QAndAResults
 }
 
-export default function QAndABigScreen({
-  actionEntryId,
-  onToggleAnswered,
-  question,
-  results,
-}: QAndABigScreenProps) {
+const MAX_VISIBLE_ENTRIES = 5
+
+export default function QAndABigScreen({ actionEntryId, onToggleAnswered, question, results }: QAndABigScreenProps) {
+  const visibleEntries = results.entries.slice(0, MAX_VISIBLE_ENTRIES)
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-      <div className="space-y-4 text-center">
-        <p className="text-sm uppercase tracking-[0.35em] text-cyan-300">q&amp;a</p>
-        <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">{question.title}</h1>
-        <p className="text-base text-slate-300">{`${results.entries.length} audience questions`}</p>
-      </div>
-
-      <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-        {results.entries.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-center text-slate-300">
-            Waiting for the first audience question…
-          </div>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {results.entries.map((entry) => (
-              <article
-                className={`rounded-3xl border px-5 py-4 ${
-                  entry.answered
-                    ? 'border-emerald-300/30 bg-emerald-400/10'
-                    : 'border-white/10 bg-slate-950/70'
-                }`}
-                key={entry.id}
+    <SlideLayout
+      footer={<ResponseCount count={results.entries.length} label="questions" />}
+      title={question.title}
+    >
+      {visibleEntries.length === 0 ? (
+        <SlideEmptyState>Audience questions will appear here, most upvoted first.</SlideEmptyState>
+      ) : (
+        <ol className="space-y-4 overflow-hidden">
+          {visibleEntries.map((entry, index) => (
+            <li
+              className={`flex items-center gap-8 rounded-3xl px-8 ${index === 0 && !entry.answered ? 'bg-slide-subtle py-7' : 'py-4'} ${
+                entry.answered ? 'opacity-45' : ''
+              }`}
+              key={entry.id}
+            >
+              <span className="flex w-24 shrink-0 items-center gap-3 text-[28px] font-semibold tabular-nums text-slide-muted">
+                <ThumbsUp aria-hidden="true" className="size-7" />
+                <span aria-label={`${entry.upvoteCount} upvotes`}>{entry.upvoteCount}</span>
+              </span>
+              <p
+                className={`min-w-0 flex-1 leading-snug ${
+                  index === 0 && !entry.answered ? 'text-[40px] font-semibold' : 'text-[30px]'
+                } ${entry.answered ? 'line-through decoration-2' : ''}`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.25em] text-slate-400">{`${entry.upvoteCount} upvotes`}</p>
-                    <p className="mt-3 text-lg leading-8 text-slate-100">{entry.text}</p>
-                  </div>
-
-                  {entry.answered ? (
-                    <span className="shrink-0 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-emerald-100">
-                      Answered
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={actionEntryId === entry.id}
-                    onClick={() => onToggleAnswered(entry.id, !entry.answered)}
-                    type="button"
-                  >
-                    {entry.answered ? 'Reopen' : 'Mark answered'}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+                {entry.text}
+              </p>
+              <button
+                className="flex shrink-0 items-center gap-2 rounded-full border-2 border-slide-line px-6 py-3 text-[22px] font-semibold transition hover:border-slide-accent hover:text-slide-accent disabled:opacity-50"
+                disabled={actionEntryId === entry.id}
+                onClick={() => onToggleAnswered(entry.id, !entry.answered)}
+                type="button"
+              >
+                {entry.answered ? (
+                  'Reopen'
+                ) : (
+                  <>
+                    <Check aria-hidden="true" className="size-6" />
+                    Mark answered
+                  </>
+                )}
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </SlideLayout>
   )
 }

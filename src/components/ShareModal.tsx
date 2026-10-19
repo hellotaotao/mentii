@@ -24,36 +24,41 @@ export default function ShareModal({ code, onClose, onError }: ShareModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      aria-labelledby="share-room-title"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4 backdrop-blur-[2px]"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose()
         }
       }}
+      role="dialog"
     >
-      <div className="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl">
+      <div className="mentii-pop-in relative w-full max-w-sm rounded-2xl bg-surface p-7 text-center shadow-2xl">
         <button
           aria-label="Close share dialog"
-          className="absolute right-4 top-4 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full text-ink-3 transition hover:bg-sunken hover:text-ink"
           onClick={onClose}
           type="button"
         >
           <X className="size-5" />
         </button>
 
-        <p className="text-center text-sm uppercase tracking-[0.3em] text-cyan-600">Share this room</p>
-        <p className="mt-2 text-center text-sm text-slate-500">Scan the QR code or enter the code below to join.</p>
+        <h2 className="text-lg font-semibold text-ink" id="share-room-title">
+          Invite the audience
+        </h2>
+        <p className="mt-1 text-sm text-ink-3">Scan the QR code, or go to {window.location.host} and enter the code.</p>
 
         <div className="mt-6 flex justify-center">
-          <div className="rounded-2xl bg-white p-3 shadow-inner ring-1 ring-slate-200">
+          <div className="rounded-2xl bg-white p-3 ring-1 ring-line">
             <QRCodeSVG aria-label="Session QR code" size={180} value={joinUrl} />
           </div>
         </div>
 
-        <p className="mt-6 text-center text-3xl font-bold tracking-[0.4em] text-slate-900">{formatSessionCode(code)}</p>
+        <p className="mt-5 text-[32px] font-bold tabular-nums tracking-[0.08em] text-ink">{formatSessionCode(code)}</p>
 
         <button
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand text-sm font-semibold text-white transition hover:bg-brand-hover"
           onClick={() => {
             void handleCopy()
           }}

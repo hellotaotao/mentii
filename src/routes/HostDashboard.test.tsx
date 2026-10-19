@@ -7,16 +7,20 @@ const {
   mockCreateRoomWithDefaultQuestion,
   mockDeleteHostRoom,
   mockListHostRooms,
+  mockListRoomSlides,
 } = vi.hoisted(() => ({
   mockCreateRoomWithDefaultQuestion: vi.fn(),
   mockDeleteHostRoom: vi.fn(),
   mockListHostRooms: vi.fn(),
+  mockListRoomSlides: vi.fn(),
 }))
 
 vi.mock('../lib/supabaseQueries', () => ({
   createRoomWithDefaultQuestion: mockCreateRoomWithDefaultQuestion,
   deleteHostRoom: mockDeleteHostRoom,
+  duplicateRoom: vi.fn(),
   listHostRooms: mockListHostRooms,
+  listRoomSlides: mockListRoomSlides,
 }))
 
 const hostUser = {
@@ -30,7 +34,8 @@ const rooms = [
     created_at: '2026-04-09T08:30:00.000Z',
     id: 'session-1',
     name: 'Weekly standup',
-    state: 'draft',
+    state: 'live',
+    theme: 'light',
   },
   {
     code: '185004',
@@ -38,6 +43,7 @@ const rooms = [
     id: 'session-2',
     name: 'Launch retro',
     state: 'ended',
+    theme: 'dark',
   },
 ]
 
@@ -59,7 +65,25 @@ beforeEach(() => {
   mockDeleteHostRoom.mockReset()
   mockListHostRooms.mockReset()
 
+  mockListRoomSlides.mockReset()
   mockListHostRooms.mockResolvedValue(rooms)
+  mockListRoomSlides.mockResolvedValue(
+    new Map([
+      [
+        'session-1',
+        [
+          {
+            config: { chartType: 'bar', options: ['Yes', 'No'] },
+            id: 'question-1',
+            orderIndex: 0,
+            sessionId: 'session-1',
+            title: 'Ship on Friday?',
+            type: 'multiple_choice',
+          },
+        ],
+      ],
+    ]),
+  )
   mockCreateRoomWithDefaultQuestion.mockResolvedValue({
     roomId: 'session-new',
   })
@@ -79,8 +103,10 @@ describe('HostDashboard', () => {
     expect(screen.getByText('Launch retro')).toBeInTheDocument()
     expect(await screen.findByText(/code 4821 76/i)).toBeInTheDocument()
     expect(screen.getByText(/code 1850 04/i)).toBeInTheDocument()
-    expect(screen.getByText('draft')).toBeInTheDocument()
-    expect(screen.getByText('ended')).toBeInTheDocument()
+    expect(screen.getByText('Live')).toBeInTheDocument()
+    expect(await screen.findByText('1 slide')).toBeInTheDocument()
+    expect(screen.getByText('Ship on Friday?')).toBeInTheDocument()
+    expect(mockListRoomSlides).toHaveBeenCalledWith(['session-1', 'session-2'])
   })
 
   it('asks for room name before creating a new room', async () => {
@@ -89,7 +115,7 @@ describe('HostDashboard', () => {
     await screen.findByText('Weekly standup')
     expect(mockCreateRoomWithDefaultQuestion).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: /create new room/i }))
+    fireEvent.click(screen.getByRole('button', { name: /new room/i }))
     fireEvent.change(screen.getByLabelText(/room name/i), {
       target: { value: 'Quarterly planning' },
     })
@@ -108,8 +134,8 @@ describe('HostDashboard', () => {
 
     await screen.findByText(/code 4821 76/i)
 
-    const deleteButtons = screen.getAllByRole('button', { name: /delete/i })
-    fireEvent.click(deleteButtons[0])
+    fireEvent.click(screen.getByRole('button', { name: /more actions for weekly standup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
 
     await waitFor(() => expect(mockDeleteHostRoom).toHaveBeenCalledWith('session-1', 'host-1'))
     expect(screen.queryByText(/code 4821 76/i)).not.toBeInTheDocument()

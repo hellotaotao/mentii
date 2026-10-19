@@ -375,16 +375,16 @@ describe('BigScreen', () => {
   it('renders the session code bar, current question title, and aggregated multiple-choice results', async () => {
     renderBigScreen()
 
-    expect(await screen.findByText(/go to localhost/i)).toBeInTheDocument()
+    // The loading layout is replaced once results arrive, so wait for results first.
+    expect(within(await screen.findByTestId('results-summary')).getByText('Velocity')).toBeInTheDocument()
+    expect(screen.getByText(/join at/i)).toBeInTheDocument()
     expect(screen.getByText('4821 76')).toBeInTheDocument()
-    expect(screen.getByTestId('session-qr-code')).toHaveTextContent('/?code=482176')
     expect(
       screen.getByRole('heading', {
         name: /which roadmap theme matters most next quarter\?/i,
       }),
     ).toBeInTheDocument()
-    expect(within(await screen.findByTestId('results-summary')).getByText('Velocity')).toBeInTheDocument()
-    expect(within(screen.getByTestId('results-summary')).getByText('3 votes')).toBeInTheDocument()
+    expect(within(screen.getByTestId('results-summary')).getByText('3')).toBeInTheDocument()
   })
 
   it('refreshes when the current slide changes and when new votes arrive', async () => {
@@ -428,7 +428,7 @@ describe('BigScreen', () => {
       resultsSignalListener?.()
     })
 
-    await waitFor(() => expect(screen.getByText('4 votes')).toBeInTheDocument())
+    await waitFor(() => expect(within(screen.getByTestId('results-summary')).getByText('4')).toBeInTheDocument())
   })
 
   it('keeps the freshest results when an older request resolves late', async () => {
@@ -457,13 +457,13 @@ describe('BigScreen', () => {
       refreshRequest.resolve(updatedFirstResults)
     })
 
-    await screen.findByText('5 total responses')
+    await screen.findByText('5 responses')
 
     await act(async () => {
       initialRequest.resolve(firstResults)
     })
 
-    await waitFor(() => expect(screen.getByText('5 total responses')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('5 responses')).toBeInTheDocument())
   })
 
   it('waits for the post-subscribe sync before showing the first result snapshot', async () => {
@@ -488,8 +488,8 @@ describe('BigScreen', () => {
       initialRequest.resolve(firstResults)
     })
 
-    expect(await screen.findByText('Loading the latest audience responses…')).toBeInTheDocument()
-    expect(screen.queryByText('4 total responses')).not.toBeInTheDocument()
+    expect(await screen.findByText('Loading responses…')).toBeInTheDocument()
+    expect(screen.queryByText('4 responses')).not.toBeInTheDocument()
 
     await act(async () => {
       resultsSignalListener?.()
@@ -499,7 +499,7 @@ describe('BigScreen', () => {
       syncedRequest.resolve(updatedFirstResults)
     })
 
-    await screen.findByText('5 total responses')
+    await screen.findByText('5 responses')
   })
 
   it('reveals presenter controls on mouse movement and supports keyboard shortcuts', async () => {
@@ -653,8 +653,8 @@ describe('BigScreen', () => {
 
     renderBigScreen()
 
-    expect(await screen.findByText('3.6 / 5')).toBeInTheDocument()
-    expect(screen.getByText(/average score/i)).toBeInTheDocument()
+    expect(await screen.findByText('3.6')).toBeInTheDocument()
+    expect(screen.getByText(/average out of 5/i)).toBeInTheDocument()
     expect(screen.getByText('Strongly disagree')).toBeInTheDocument()
     expect(screen.getByText('Strongly agree')).toBeInTheDocument()
     expect(
@@ -682,13 +682,13 @@ describe('BigScreen', () => {
 
     expect(await screen.findByText('How will support handle launch issues?')).toBeInTheDocument()
     expect(screen.getByText('Can we publish a rollback checklist?')).toBeInTheDocument()
-    expect(screen.getByText(/3 upvotes/i)).toBeInTheDocument()
-    expect(screen.getByText('Answered')).toBeInTheDocument()
+    expect(screen.getByLabelText('3 upvotes')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reopen/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /mark answered/i }))
 
     await waitFor(() => expect(mockSetQAndAEntryAnswered).toHaveBeenCalledWith('entry-1', true))
-    await waitFor(() => expect(screen.getAllByText('Answered')).toHaveLength(2))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /reopen/i })).toHaveLength(2))
   })
 
   it('hides per-option counts while a quiz question is still open', async () => {
@@ -708,7 +708,7 @@ describe('BigScreen', () => {
     renderBigScreen()
 
     expect(await screen.findByRole('timer', { name: /30 seconds remaining/i })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('3 / 5 answered')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('3 of 5 answered')).toBeInTheDocument())
     expect(screen.queryByLabelText(/correct answer/i)).not.toBeInTheDocument()
     expect(
       screen.getByRole('heading', {
@@ -748,10 +748,10 @@ describe('BigScreen', () => {
     renderBigScreen()
 
     expect(await screen.findByLabelText(/correct answer/i)).toBeInTheDocument()
-    expect(screen.getByText(/time's up · 3 answered/i)).toBeInTheDocument()
+    expect(screen.getByText(/time's up/i)).toBeInTheDocument()
+    expect(screen.getByText('3 answered')).toBeInTheDocument()
     expect(await screen.findByText('Brave Fox')).toBeInTheDocument()
     expect(screen.getByText('+920')).toBeInTheDocument()
-    expect(screen.getByText('▲ 1')).toBeInTheDocument()
     expect(mockGetQuizLeaderboard).toHaveBeenCalledWith('session-1', 10)
   })
 
@@ -813,6 +813,8 @@ describe('BigScreen', () => {
       presenceListener?.(2)
     })
 
-    expect(screen.getByText(/2 participants/i)).toBeInTheDocument()
+    fireEvent.mouseMove(screen.getByTestId('big-screen-shell'))
+
+    expect(within(screen.getByRole('toolbar', { name: 'Presenter controls' })).getByText('2')).toBeInTheDocument()
   })
 })

@@ -21,13 +21,13 @@ export type UpdateQuestionInput = Pick<TablesUpdate<'questions'>, 'title'> & {
 
 export type UpdateSessionInput = Pick<
   TablesUpdate<'sessions'>,
-  'current_question_id' | 'question_cycle_started_at' | 'results_hidden' | 'state' | 'voting_open'
+  'current_question_id' | 'question_cycle_started_at' | 'results_hidden' | 'state' | 'theme' | 'voting_open'
 >
 
-export type HostRoomSummary = Pick<Tables<'sessions'>, 'code' | 'created_at' | 'id' | 'name' | 'state'>
+export type HostRoomSummary = Pick<Tables<'sessions'>, 'code' | 'created_at' | 'id' | 'name' | 'state' | 'theme'>
 export type HostSessionSummary = HostRoomSummary
 
-type LegacyHostRoomSummary = Omit<HostRoomSummary, 'name'>
+type LegacyHostRoomSummary = Omit<HostRoomSummary, 'name' | 'theme'>
 
 function isMissingRoomNameColumn(error: { code?: string | null; message?: string } | null) {
   if (!error) {
@@ -250,7 +250,7 @@ export async function listHostRooms(hostId: string): Promise<HostRoomSummary[]> 
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, code, name, state, created_at')
+    .select('id, code, name, state, theme, created_at')
     .eq('host_id', hostId)
     .order('created_at', { ascending: false })
 
@@ -271,6 +271,7 @@ export async function listHostRooms(hostId: string): Promise<HostRoomSummary[]> 
       return {
         ...legacyRoom,
         name: buildFallbackRoomName(legacyRoom.code),
+        theme: 'light',
       }
     })
   }
@@ -287,6 +288,34 @@ export async function listHostRooms(hostId: string): Promise<HostRoomSummary[]> 
       name: normalizeRoomName(roomSummary.name),
     }
   })
+}
+
+// Slides for several rooms at once, grouped by room, for dashboard thumbnails.
+export async function listRoomSlides(roomIds: string[]) {
+  const slidesByRoom = new Map<string, EditorQuestion[]>()
+
+  if (roomIds.length === 0) {
+    return slidesByRoom
+  }
+
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('questions')
+    .select('*')
+    .in('session_id', roomIds)
+    .order('order_index', { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  for (const row of data ?? []) {
+    const roomSlides = slidesByRoom.get(row.session_id) ?? []
+    roomSlides.push(mapQuestionRow(row))
+    slidesByRoom.set(row.session_id, roomSlides)
+  }
+
+  return slidesByRoom
 }
 
 export async function listHostSessions(hostId: string): Promise<HostSessionSummary[]> {

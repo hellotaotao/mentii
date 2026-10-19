@@ -1,5 +1,72 @@
 @import "tailwindcss";
 
+/* Workspace tokens (host-facing UI). Punch palette: warm neutrals + one orange accent. */
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-app: #f6f2ee;
+  --color-surface: #ffffff;
+  --color-sunken: #faf7f4;
+  --color-line: #ebe3dc;
+  --color-line-strong: #dccfc3;
+  --color-ink: #1c120c;
+  --color-ink-2: #5c4d43;
+  --color-ink-3: #94847a;
+  --color-brand: #ff4500;
+  --color-brand-hover: #e03c00;
+  --color-brand-soft: #fff0e8;
+  --color-live: #12a150;
+  --color-live-soft: #e7f6ee;
+  --color-danger: #d92d20;
+  --color-danger-soft: #fdecea;
+}
+
+/*
+ * Presentation themes. Slides, the big screen and audience phones read these
+ * variables so a room can switch between light and dark as a whole.
+ */
+.slide-theme-light {
+  --slide-bg: #ffffff;
+  --slide-fg: #1c120c;
+  --slide-muted: #7d6d62;
+  --slide-subtle: #f5f0eb;
+  --slide-line: #ebe3dc;
+  --slide-accent: #ff4500;
+  --slide-accent-fg: #ffffff;
+  --slide-c1: #ff4500;
+  --slide-c2: #5b47e0;
+  --slide-c3: #0e9fbf;
+  --slide-c4: #12a150;
+  --slide-c5: #f0a202;
+  --slide-c6: #e0457b;
+}
+
+.slide-theme-dark {
+  --slide-bg: #161210;
+  --slide-fg: #fbf7f3;
+  --slide-muted: #a8988c;
+  --slide-subtle: rgba(255, 255, 255, 0.06);
+  --slide-line: rgba(255, 255, 255, 0.12);
+  --slide-accent: #ff6a33;
+  --slide-accent-fg: #ffffff;
+  --slide-c1: #ff6a33;
+  --slide-c2: #8b7bff;
+  --slide-c3: #3cc4e0;
+  --slide-c4: #3ccf7e;
+  --slide-c5: #ffc23d;
+  --slide-c6: #ff6f9f;
+}
+
+@theme inline {
+  --color-slide-bg: var(--slide-bg);
+  --color-slide-fg: var(--slide-fg);
+  --color-slide-muted: var(--slide-muted);
+  --color-slide-subtle: var(--slide-subtle);
+  --color-slide-line: var(--slide-line);
+  --color-slide-accent: var(--slide-accent);
+  --color-slide-accent-fg: var(--slide-accent-fg);
+}
+
 :root {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactionBar from '../components/ReactionBar'
+import PhoneShell, { PhoneMessage } from '../components/audience/PhoneShell'
+import { PhoneNotice } from '../components/audience/PhoneUI'
 import NicknameForm from '../components/quiz/NicknameForm'
 import LeaderboardPhone from '../components/questions/Leaderboard/Phone'
 import MultipleChoicePhone from '../components/questions/MultipleChoice/Phone'
@@ -16,6 +18,7 @@ import {
   trackAudiencePresence,
 } from '../lib/realtime'
 import { getParticipantId } from '../lib/participantId'
+import { toPresentationTheme } from '../lib/presentationTheme'
 import {
   getMyParticipant,
   getMyQuizStatus,
@@ -360,37 +363,6 @@ export default function VotePage() {
     setQAndASuccessMessage(null)
   }, [state.sessionData?.session.current_question_id, state.sessionData?.session.question_cycle_started_at])
 
-  const audienceDescription = useMemo(() => {
-    if (!currentQuestion) {
-      return ''
-    }
-
-    if (isMultipleChoiceQuestion(currentQuestion)) {
-      return 'Choose one answer. Results stay on the presenter screen.'
-    }
-
-    if (isOpenEndedQuestion(currentQuestion)) {
-      return 'Share a short text response. Results stay on the presenter screen.'
-    }
-
-    if (isQAndAQuestion(currentQuestion)) {
-      return 'Submit a question or upvote another one. Results stay on the presenter screen.'
-    }
-
-    if (isQuizQuestion(currentQuestion)) {
-      return 'Pick the best answer before the timer ends. Results stay on the presenter screen.'
-    }
-
-    if (isScalesQuestion(currentQuestion)) {
-      return 'Choose a rating from 1 to 5. Results stay on the presenter screen.'
-    }
-
-    if (isWordCloudQuestion(currentQuestion)) {
-      return 'Share a word or short phrase. Results stay on the presenter screen.'
-    }
-
-    return 'Respond from your phone while the presenter keeps results on the big screen.'
-  }, [currentQuestion])
 
   useEffect(() => {
     setQAndAActionEntryId(null)
@@ -650,27 +622,35 @@ export default function VotePage() {
     }
   }
 
+  const presentationTheme = toPresentationTheme(state.sessionData?.session.theme)
+  const errorNotice = inlineErrorMessage ? (
+    <div className="mt-5">
+      <PhoneNotice tone="error">{inlineErrorMessage}</PhoneNotice>
+    </div>
+  ) : null
+
   if (state.status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
-          <h1 className="mt-3 text-3xl font-semibold">Loading session…</h1>
-          <p className="mt-4 text-base text-slate-300">Pulling down the current question for your phone.</p>
-        </section>
-      </main>
+      <PhoneShell theme="light">
+        <p className="text-center text-slide-muted">Joining…</p>
+      </PhoneShell>
     )
   }
 
   if (state.status === 'error' || !state.sessionData) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-rose-300/30 bg-rose-400/10 p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-rose-200">Audience</p>
-          <h1 className="mt-3 text-3xl font-semibold">Unable to join this session</h1>
-          <p className="mt-4 text-base text-rose-100">{state.errorMessage ?? 'Check the code and try again.'}</p>
-        </section>
-      </main>
+      <PhoneShell theme="light">
+        <PhoneMessage
+          text={state.errorMessage ?? 'Check the code with the presenter and try again.'}
+          title="We couldn’t find that session"
+        />
+        <a
+          className="mt-8 flex h-14 items-center justify-center rounded-2xl border-2 border-slide-line text-[17px] font-semibold"
+          href="/"
+        >
+          Enter a different code
+        </a>
+      </PhoneShell>
     )
   }
 
@@ -679,43 +659,37 @@ export default function VotePage() {
 
   if (!isProfileResolved) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <p className="text-base text-slate-300">Getting your seat ready…</p>
-      </main>
+      <PhoneShell theme={presentationTheme}>
+        <p className="text-center text-slide-muted">Getting your seat ready…</p>
+      </PhoneShell>
     )
   }
 
   if (requiresProfile && !profile && sessionState !== 'ended') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-10 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
-          <NicknameForm onSubmit={handleJoin} roomName={state.sessionData.session.name} />
-        </section>
-      </main>
+      <PhoneShell theme={presentationTheme}>
+        <NicknameForm onSubmit={handleJoin} roomName={state.sessionData.session.name} />
+      </PhoneShell>
     )
   }
 
   if (sessionState !== 'live' || !currentQuestion) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 pb-28 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
-          {profile ? (
-            <p className="mentii-pop-in mt-4 text-6xl" aria-hidden="true">
-              {profile.emoji}
-            </p>
-          ) : null}
-          <h1 className="mt-3 text-3xl font-semibold">
-            {profile ? `You're in, ${profile.nickname}!` : 'Waiting for the presenter to start...'}
-          </h1>
-          <p className="mt-4 text-base text-slate-300">
-            {profile
-              ? 'Look for your name on the big screen. The first question will appear here when the game starts.'
-              : 'Keep this page open. The current question will appear here when the session goes live.'}
-          </p>
-        </section>
-        {reactionBar}
-      </main>
+      <PhoneShell footer={reactionBar} profile={profile} theme={presentationTheme}>
+        {profile ? (
+          <PhoneMessage
+            emoji={profile.emoji}
+            text="Look for your name on the big screen. The first question appears here when the game starts."
+            title={`You're in, ${profile.nickname}!`}
+          />
+        ) : (
+          <PhoneMessage
+            emoji="👋"
+            text="Keep this page open. Questions appear here as soon as the presenter starts."
+            title="Waiting for the presenter to start..."
+          />
+        )}
+      </PhoneShell>
     )
   }
 
@@ -732,138 +706,89 @@ export default function VotePage() {
           : 'answering'
 
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 pb-28 pt-10 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
-          <div className="flex items-center justify-between gap-3 text-sm text-slate-300">
-            <span className="uppercase tracking-[0.3em] text-emerald-300">
-              {isQuizQuestion(currentQuestion) ? 'Quiz' : 'Leaderboard'}
-            </span>
-            {profile ? (
-              <span className="truncate">
-                <span aria-hidden="true">{profile.emoji}</span> {profile.nickname}
-              </span>
-            ) : null}
-          </div>
-
-          {isQuizQuestion(currentQuestion) ? (
-            <>
-              <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">{currentQuestion.title}</h1>
-              <div className="mt-6">
-                <QuizPhone
-                  isSubmitting={isSubmitting}
-                  onVote={handleQuizVote}
-                  phase={quizPhase}
-                  question={currentQuestion}
-                  remainingSeconds={quizRemainingSeconds}
-                  status={myQuizStatus}
-                  submittedOptionIdx={submittedOptionIdx}
-                />
-              </div>
-            </>
-          ) : (
+      <PhoneShell footer={reactionBar} profile={profile} theme={presentationTheme}>
+        {isQuizQuestion(currentQuestion) ? (
+          <>
+            <h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{currentQuestion.title}</h1>
             <div className="mt-6">
-              <LeaderboardPhone onSaveRealName={handleSaveRealName} question={currentQuestion} status={myQuizStatus} />
+              <QuizPhone
+                isSubmitting={isSubmitting}
+                onVote={handleQuizVote}
+                phase={quizPhase}
+                question={currentQuestion}
+                remainingSeconds={quizRemainingSeconds}
+                status={myQuizStatus}
+                submittedOptionIdx={submittedOptionIdx}
+              />
             </div>
-          )}
-
-          {inlineErrorMessage ? (
-            <p className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
-              {inlineErrorMessage}
-            </p>
-          ) : null}
-        </section>
-        {reactionBar}
-      </main>
+          </>
+        ) : (
+          <LeaderboardPhone onSaveRealName={handleSaveRealName} question={currentQuestion} status={myQuizStatus} />
+        )}
+        {errorNotice}
+      </PhoneShell>
     )
   }
 
   if (!state.sessionData.session.voting_open) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
-          <h1 className="mt-3 text-3xl font-semibold">Voting is closed</h1>
-          <p className="mt-4 text-base text-slate-300">
-            The presenter has closed submissions for this question.
-          </p>
-        </section>
-      </main>
+      <PhoneShell footer={reactionBar} profile={profile} theme={presentationTheme}>
+        <PhoneMessage
+          emoji="🔒"
+          text="The presenter has closed submissions for this question. Keep an eye on the big screen."
+          title="Voting is closed"
+        />
+      </PhoneShell>
     )
   }
 
   if (hasSubmittedCurrentQuestion) {
-    const confirmationTitle = currentQuestion && isOpenEndedQuestion(currentQuestion) ? 'Thanks for sharing! 👍' : 'Thanks for voting! 👍'
-
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 pb-28 text-white">
-        <section className="w-full max-w-lg rounded-3xl border border-emerald-300/30 bg-emerald-400/10 p-8 text-center shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.3em] text-emerald-200">Audience</p>
-          <h1 className="mt-3 text-3xl font-semibold">{confirmationTitle}</h1>
-          <p className="mt-4 text-base text-emerald-100">Your response is in. Watch the big screen for the live result.</p>
-        </section>
-        {reactionBar}
-      </main>
+      <PhoneShell footer={reactionBar} profile={profile} theme={presentationTheme}>
+        <PhoneMessage
+          emoji="🙌"
+          text="Your response is in. Watch the big screen for the results."
+          title={isOpenEndedQuestion(currentQuestion) ? 'Thanks for sharing!' : 'Thanks for voting!'}
+        />
+      </PhoneShell>
     )
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 pb-28 pt-10 text-white">
-      <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8">
-        <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Audience</p>
-        <h1 className="mt-3 text-3xl font-semibold">{currentQuestion.title}</h1>
-        <p className="mt-4 text-base text-slate-300">{audienceDescription}</p>
+    <PhoneShell footer={reactionBar} profile={profile} theme={presentationTheme}>
+      <h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{currentQuestion.title}</h1>
 
-        <div className="mt-6">
-          {isMultipleChoiceQuestion(currentQuestion) ? (
-            <MultipleChoicePhone
-              isSubmitting={isSubmitting}
-              onVote={handleVote}
-              question={currentQuestion}
-            />
-          ) : isOpenEndedQuestion(currentQuestion) ? (
-            <OpenEndedPhone
-              isSubmitting={isSubmitting}
-              onSubmit={handleOpenEndedSubmit}
-              question={currentQuestion}
-            />
-          ) : isQAndAQuestion(currentQuestion) ? (
-            <QAndAPhone
-              actionEntryId={qAndAActionEntryId}
-              isLoadingEntries={qAndAResultsState.status === 'loading'}
-              isSubmitting={isSubmitting}
-              onSubmit={handleQAndASubmit}
-              onUpvote={handleQAndAUpvote}
-              question={currentQuestion}
-              results={qAndAResultsState.results}
-              successMessage={qAndASuccessMessage}
-            />
-          ) : isScalesQuestion(currentQuestion) ? (
-            <ScalesPhone
-              isSubmitting={isSubmitting}
-              onVote={handleScaleVote}
-              question={currentQuestion}
-            />
-          ) : isWordCloudQuestion(currentQuestion) ? (
-            <WordCloudPhone
-              isSubmitting={isSubmitting}
-              onSubmit={handleWordCloudSubmit}
-              question={currentQuestion}
-              showSuccess={showWordCloudSuccess}
-            />
-          ) : (
-            <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-slate-300">
-              This question type will appear on phones in a later phase.
-            </div>
-          )}
-        </div>
+      <div className="mt-6">
+        {isMultipleChoiceQuestion(currentQuestion) ? (
+          <MultipleChoicePhone isSubmitting={isSubmitting} onVote={handleVote} question={currentQuestion} />
+        ) : isOpenEndedQuestion(currentQuestion) ? (
+          <OpenEndedPhone isSubmitting={isSubmitting} onSubmit={handleOpenEndedSubmit} question={currentQuestion} />
+        ) : isQAndAQuestion(currentQuestion) ? (
+          <QAndAPhone
+            actionEntryId={qAndAActionEntryId}
+            isLoadingEntries={qAndAResultsState.status === 'loading'}
+            isSubmitting={isSubmitting}
+            onSubmit={handleQAndASubmit}
+            onUpvote={handleQAndAUpvote}
+            question={currentQuestion}
+            results={qAndAResultsState.results}
+            successMessage={qAndASuccessMessage}
+          />
+        ) : isScalesQuestion(currentQuestion) ? (
+          <ScalesPhone isSubmitting={isSubmitting} onVote={handleScaleVote} question={currentQuestion} />
+        ) : isWordCloudQuestion(currentQuestion) ? (
+          <WordCloudPhone
+            isSubmitting={isSubmitting}
+            onSubmit={handleWordCloudSubmit}
+            question={currentQuestion}
+            showSuccess={showWordCloudSuccess}
+          />
+        ) : (
+          <PhoneNotice>Watch the big screen for this slide.</PhoneNotice>
+        )}
+      </div>
 
-        {inlineErrorMessage ? (
-          <p className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
-            {inlineErrorMessage}
-          </p>
-        ) : null}
-      </section>
-      {reactionBar}
-    </main>
+      {errorNotice}
+    </PhoneShell>
   )
 }

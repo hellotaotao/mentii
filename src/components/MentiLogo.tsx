@@ -1,4 +1,4 @@
-import { useTheme } from '../lib/themeContext'
+import { useOptionalTheme } from '../lib/themeContext'
 
 type LogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
@@ -15,13 +15,16 @@ const BAR_HEIGHTS = [0.44, 1, 0.66] as const
 export function MentiLogo({
   size = 'md',
   creator = false,
+  inheritColor = false,
 }: {
   size?: LogoSize
   creator?: boolean
+  // Use the surrounding text color for the wordmark (e.g. on dark presentation themes).
+  inheritColor?: boolean
 }) {
-  const { theme } = useTheme()
+  const theme = useOptionalTheme()
   const { icon, font, gap, radius } = SIZE_CONFIG[size]
-  const textColor = creator ? theme.creatorText : theme.text1
+  const textColor = inheritColor ? 'currentColor' : creator ? theme.creatorText : theme.text1
   const padding = Math.round(icon * 0.17)
   const innerGap = Math.round(icon * 0.07)
 

@@ -1,38 +1,32 @@
 import type { OpenEndedQuestion, OpenEndedResults } from '../../../types/questions'
+import { ResponseCount, SlideEmptyState, SlideLayout } from '../../slides/SlideChrome'
 
 type OpenEndedBigScreenProps = {
   question: OpenEndedQuestion
   results: OpenEndedResults
 }
 
-export default function OpenEndedBigScreen({ question, results }: OpenEndedBigScreenProps) {
-  return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-      <div className="space-y-4 text-center">
-        <p className="text-sm uppercase tracking-[0.35em] text-cyan-300">open ended</p>
-        <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">{question.title}</h1>
-        <p className="text-base text-slate-300">{`${results.responses.length} total responses`}</p>
-      </div>
+const MAX_VISIBLE_RESPONSES = 9
 
-      <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-        {results.responses.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-center text-slate-300">
-            Waiting for the first response to arrive…
-          </div>
-        ) : (
-          <div className="grid max-h-[420px] gap-4 overflow-y-auto pr-2 md:grid-cols-2">
-            {results.responses.map((response, index) => (
-              <article
-                className="rounded-3xl border border-white/10 bg-slate-950/70 px-5 py-4 shadow-sm transition-transform duration-300"
-                key={response.id}
-              >
-                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">{`Response ${index + 1}`}</p>
-                <p className="mt-3 whitespace-pre-wrap text-lg leading-8 text-slate-100">{response.text}</p>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+export default function OpenEndedBigScreen({ question, results }: OpenEndedBigScreenProps) {
+  const visibleResponses = results.responses.slice(0, MAX_VISIBLE_RESPONSES)
+
+  return (
+    <SlideLayout footer={<ResponseCount count={results.responses.length} />} title={question.title}>
+      {visibleResponses.length === 0 ? (
+        <SlideEmptyState>Responses will appear here as people submit them.</SlideEmptyState>
+      ) : (
+        <div className="grid h-full auto-rows-min grid-cols-3 gap-6 overflow-hidden">
+          {visibleResponses.map((response) => (
+            <article
+              className="mentii-pop-in rounded-3xl bg-slide-subtle px-8 py-7 text-[28px] leading-snug"
+              key={response.id}
+            >
+              <p className="line-clamp-4 whitespace-pre-wrap">{response.text}</p>
+            </article>
+          ))}
+        </div>
+      )}
+    </SlideLayout>
   )
 }

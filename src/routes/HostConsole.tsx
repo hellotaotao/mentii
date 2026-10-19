@@ -1,12 +1,17 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Play, RotateCcw, Share2, Users } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Moon, Play, RotateCcw, Share2, Sun, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import QuestionBigScreenPreview from '../components/QuestionBigScreenPreview'
+import { MentiLogo } from '../components/MentiLogo'
 import QuestionPropertiesPanel from '../components/QuestionPropertiesPanel'
 import ShareModal from '../components/ShareModal'
 import SlideList from '../components/SlideList'
-import type { HostPropertyTab } from '../components/questions/MultipleChoice/editorTabs'
-import { subscribeToSessionPresenceCount } from '../lib/realtime'
+import { SlideChromeProvider } from '../components/slides/SlideChrome'
+import SlideRenderer from '../components/slides/SlideRenderer'
+import SlideStage from '../components/slides/SlideStage'
+import { getSlideTypeMeta } from '../components/slides/slideTypes'
+import { Button, IconButton, Segmented } from '../components/ui/controls'
+import { toPresentationTheme, type PresentationTheme } from '../lib/presentationTheme'
+import { subscribeToSessionPresenceCount, subscribeToSessionUpdates } from '../lib/realtime'
 import {
   createQuestion,
   deleteQuestion,
@@ -58,7 +63,6 @@ function reorderQuestionState(currentQuestions: EditorQuestion[], orderedQuestio
 export default function HostConsole() {
   const navigate = useNavigate()
   const { sessionId = '' } = useParams()
-  const [activeTab, setActiveTab] = useState<HostPropertyTab>('content')
   const [editorData, setEditorData] = useState<SessionEditorData | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [roomNameDraft, setRoomNameDraft] = useState('')
@@ -80,15 +84,6 @@ export default function HostConsole() {
       null,
     [editorData, selectedQuestionId],
   )
-  const selectedQuestionIndex = selectedQuestion
-    ? editorData?.questions.findIndex((question) => question.id === selectedQuestion.id) ?? -1
-    : -1
-  const previousQuestion =
-    selectedQuestionIndex > 0 && editorData ? editorData.questions[selectedQuestionIndex - 1] : null
-  const nextQuestion =
-    selectedQuestionIndex >= 0 && editorData && selectedQuestionIndex < editorData.questions.length - 1
-      ? editorData.questions[selectedQuestionIndex + 1]
-      : null
 
   function mergeSessionUpdate(nextSessionFields: Partial<SessionEditorData['session']>) {
     setEditorData((currentEditorData) => {
@@ -181,10 +176,19 @@ export default function HostConsole() {
       return
     }
 
-    const unsubscribe = subscribeToSessionPresenceCount(sessionId, setParticipantCount)
+    const unsubscribePresence = subscribeToSessionPresenceCount(sessionId, setParticipantCount)
+    // Keep the live indicator in sync when the big screen changes slides.
+    const unsubscribeSession = subscribeToSessionUpdates(sessionId, (nextSession) => {
+      setEditorData((currentEditorData) =>
+        currentEditorData
+          ? { ...currentEditorData, session: { ...currentEditorData.session, ...nextSession } }
+          : currentEditorData,
+      )
+    })
 
     return () => {
-      unsubscribe()
+      unsubscribePresence()
+      unsubscribeSession()
     }
   }, [sessionId])
 
@@ -203,7 +207,12 @@ export default function HostConsole() {
     })
   }
 
-  async function handleSelectQuestion(questionId: string) {
+  function handleSelectQuestion(questionId: string) {
+    setSelectedQuestionId(questionId)
+  }
+
+  // Moves the audience and big screen to a slide (used while presenting).
+  async function handleShowLive(questionId: string) {
     if (!editorData) {
       return
     }
@@ -252,6 +261,22 @@ export default function HostConsole() {
       window.open(`/present/${editorData.session.id}`, '_blank', 'noopener,noreferrer')
     } catch (error) {
       mergeSessionUpdate(previousSession)
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  async function handleThemeChange(theme: PresentationTheme) {
+    if (!editorData || editorData.session.theme === theme) {
+      return
+    }
+
+    const previousTheme = editorData.session.theme
+    mergeSessionUpdate({ theme })
+
+    try {
+      await updateSession(editorData.session.id, { theme })
+    } catch (error) {
+      mergeSessionUpdate({ theme: previousTheme })
       setErrorMessage(getErrorMessage(error))
     }
   }
@@ -404,7 +429,6 @@ export default function HostConsole() {
         }
       })
       setSelectedQuestionId(nextQuestion.id)
-      setActiveTab('content')
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
@@ -490,235 +514,239 @@ export default function HostConsole() {
 
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
-        <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
-          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
-          <h1 className="mt-3 text-3xl font-semibold">Loading host console…</h1>
-          <p className="mt-4 text-sm text-slate-600">Fetching the room slides and draft settings from Supabase.</p>
-        </section>
+      <main className="flex min-h-screen items-center justify-center bg-app text-ink-2">
+        <p className="text-sm">Loading your room…</p>
       </main>
     )
   }
 
   if (status === 'error' || !editorData) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 text-slate-900">
-        <section className="w-full max-w-md rounded-3xl border border-rose-300/50 bg-rose-50 p-8 shadow-lg">
-          <p className="text-sm uppercase tracking-[0.3em] text-rose-600">Host</p>
-          <h1 className="mt-3 text-3xl font-semibold">Unable to load the editor</h1>
-          <p className="mt-4 text-sm text-rose-700">{errorMessage ?? 'Try refreshing the page.'}</p>
+      <main className="flex min-h-screen items-center justify-center bg-app px-6 text-ink">
+        <section className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 shadow-sm">
+          <h1 className="text-2xl font-semibold">This room could not be opened</h1>
+          <p className="mt-3 text-ink-2">{errorMessage ?? 'Refresh the page to try again.'}</p>
+          <Button className="mt-6" onClick={() => navigate('/host')}>
+            <ArrowLeft className="size-4" />
+            Back to rooms
+          </Button>
         </section>
       </main>
     )
   }
 
+  const session = editorData.session
+  const presentationTheme = toPresentationTheme(session.theme)
+  const isLive = session.state === 'live'
+  const liveQuestionIndex = editorData.questions.findIndex((question) => question.id === session.current_question_id)
+  const liveQuestion = liveQuestionIndex >= 0 ? editorData.questions[liveQuestionIndex] : null
+  const previousLiveQuestion = liveQuestionIndex > 0 ? editorData.questions[liveQuestionIndex - 1] : null
+  const nextLiveQuestion =
+    liveQuestionIndex >= 0 && liveQuestionIndex < editorData.questions.length - 1
+      ? editorData.questions[liveQuestionIndex + 1]
+      : null
+  const selectedMeta = selectedQuestion ? getSlideTypeMeta(selectedQuestion.type) : null
+  const saveLabel =
+    saveState === 'saving' || roomNameSaveState === 'saving'
+      ? 'Saving…'
+      : saveState === 'error' || roomNameSaveState === 'error'
+        ? 'Not saved'
+        : saveState === 'saved' || roomNameSaveState === 'saved'
+          ? 'Saved'
+          : ''
+
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="border-b border-slate-200 bg-white/95">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
-            <button
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              onClick={() => navigate('/host')}
-              type="button"
-            >
-              <ArrowLeft className="size-4" />
-              Back to rooms
-            </button>
+    <main className="flex h-screen flex-col bg-app text-ink">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
+        <IconButton label="Back to rooms" onClick={() => navigate('/host')}>
+          <ArrowLeft className="size-[18px]" />
+        </IconButton>
+        <MentiLogo creator size="xs" />
+        <span aria-hidden="true" className="mx-2 h-6 w-px bg-line" />
 
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Host</p>
-            <h1 className="text-3xl font-semibold">Room editor</h1>
+        <input
+          aria-label="Room name"
+          className="h-9 w-[min(360px,30vw)] rounded-lg border border-transparent bg-transparent px-2 text-[15px] font-semibold text-ink outline-none transition hover:border-line focus:border-brand focus:ring-3 focus:ring-brand/15"
+          id="room-name-input"
+          maxLength={120}
+          onBlur={flushRoomNameSave}
+          onChange={(event) => queueRoomNameSave(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.currentTarget.blur()
+            }
+          }}
+          value={roomNameDraft}
+        />
+        <span aria-live="polite" className={`text-xs ${saveLabel === 'Not saved' ? 'text-danger' : 'text-ink-3'}`}>
+          {saveLabel}
+        </span>
 
-            <label className="block max-w-md space-y-2" htmlFor="room-name-input">
-              <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Room name</span>
-              <input
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-400"
-                id="room-name-input"
-                onBlur={flushRoomNameSave}
-                onChange={(event) => queueRoomNameSave(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.currentTarget.blur()
-                  }
-                }}
-                value={roomNameDraft}
-              />
-            </label>
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold md:flex ${
+              isLive ? 'bg-live-soft text-live' : 'bg-sunken text-ink-3'
+            }`}
+          >
+            <span className={`size-2 rounded-full ${isLive ? 'animate-pulse bg-live' : 'bg-ink-3/50'}`} />
+            {isLive ? 'Live' : 'Draft'}
+            <span className="font-medium text-ink-3">·</span>
+            <span className="flex items-center gap-1 font-medium tabular-nums">
+              <Users aria-label="People joined" className="size-3.5" />
+              {participantCount}
+            </span>
+          </span>
+          <span className="hidden text-[13px] font-semibold tabular-nums text-ink-2 lg:inline">
+            {`Code ${formatSessionCode(session.code)}`}
+          </span>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
-              {editorData.session.state === 'live' ? (
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-emerald-700">
-                  <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
-                  <span className="font-medium">Live</span>
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-slate-500">
-                  <span className="size-2 rounded-full bg-slate-400" />
-                  <span className="font-medium">Draft</span>
-                </div>
-              )}
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2">
-                <Users className="size-4 text-slate-500" />
-                <span>{participantCount}</span>
-              </div>
-              <div className="inline-flex items-center gap-3 rounded-full border border-slate-300 bg-white px-4 py-2">
-                <span>Code</span>
-                <span className="text-base font-semibold tracking-[0.35em]">
-                  {formatSessionCode(editorData.session.code)}
-                </span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2">
-                <span className="text-slate-500">Room ID</span>
-                <span className="font-mono text-xs text-slate-700">{editorData.session.id}</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              {roomNameSaveState === 'saving'
-                ? 'Saving room name…'
-                : roomNameSaveState === 'saved'
-                  ? 'Room name saved.'
-                  : roomNameSaveState === 'error'
-                    ? 'Could not save room name.'
-                    : 'Room name can be changed anytime.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={handlePreview}
-              type="button"
-            >
-              <Eye className="size-4" />
-              Preview
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => setShareModalOpen(true)}
-              type="button"
-            >
-              <Share2 className="size-4" />
-              Share
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:text-rose-700"
-              onClick={() => {
-                void handleResetRoom()
+          <div className="w-[92px]">
+            <Segmented<PresentationTheme>
+              label="Presentation theme"
+              onChange={(theme) => {
+                void handleThemeChange(theme)
               }}
-              type="button"
-            >
-              <RotateCcw className="size-4" />
-              Reset room
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => {
-                void handlePresent()
-              }}
-              type="button"
-            >
-              <Play className="size-4" />
-              Present
-            </button>
+              options={[
+                { icon: <Sun aria-label="Light" className="size-4" />, label: '', value: 'light' },
+                { icon: <Moon aria-label="Dark" className="size-4" />, label: '', value: 'dark' },
+              ]}
+              value={presentationTheme}
+            />
           </div>
+          <IconButton
+            label="Reset room"
+            onClick={() => {
+              void handleResetRoom()
+            }}
+          >
+            <RotateCcw className="size-[18px]" />
+          </IconButton>
+          <Button onClick={handlePreview}>
+            <Eye className="size-4" />
+            Preview
+          </Button>
+          <Button onClick={() => setShareModalOpen(true)}>
+            <Share2 className="size-4" />
+            Share
+          </Button>
+          <Button
+            onClick={() => {
+              void handlePresent()
+            }}
+            variant="primary"
+          >
+            <Play className="size-4 fill-current" />
+            Present
+          </Button>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-[1400px] gap-4 px-4 py-6 xl:grid-cols-[190px_minmax(0,1fr)_360px]">
-        <SlideList
-          onAddSlide={(type) => {
-            void handleAddSlide(type)
-          }}
-          onDelete={handleDeleteSlide}
-          onReorder={handleReorderSlides}
-          onSelect={(questionId) => {
-            void handleSelectQuestion(questionId)
-          }}
-          questions={editorData.questions}
-          selectedQuestionId={selectedQuestion?.id ?? null}
-        />
+      <div className="grid min-h-0 flex-1 grid-cols-[236px_minmax(0,1fr)_340px]">
+        <div className="min-h-0 border-r border-line">
+          <SlideList
+            liveQuestionId={isLive ? session.current_question_id : null}
+            onAddSlide={(type) => {
+              void handleAddSlide(type)
+            }}
+            onDelete={handleDeleteSlide}
+            onReorder={handleReorderSlides}
+            onSelect={handleSelectQuestion}
+            questions={editorData.questions}
+            selectedQuestionId={selectedQuestion?.id ?? null}
+            theme={presentationTheme}
+          />
+        </div>
 
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-amber-500">Preview</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  {editorData.session.state === 'live'
-                    ? 'This slide is currently driving the audience phones and big screen.'
-                    : 'This center pane mirrors the big-screen composition while you build the slide.'}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!previousQuestion}
+        <section className="flex min-h-0 flex-col gap-4 p-6 xl:p-8">
+          {isLive ? (
+            <div className="flex shrink-0 items-center gap-3 self-center rounded-full bg-surface py-1.5 pl-4 pr-1.5 text-[13px] shadow-sm ring-1 ring-line">
+              <span className="size-2 animate-pulse rounded-full bg-live" />
+              <span className="font-semibold text-ink">
+                {liveQuestion ? `Audience is on slide ${liveQuestionIndex + 1}` : 'Presentation is live'}
+              </span>
+              <IconButton
+                className="size-8"
+                disabled={!previousLiveQuestion}
+                label="Previous slide"
+                onClick={() => {
+                  if (previousLiveQuestion) {
+                    void handleShowLive(previousLiveQuestion.id)
+                  }
+                }}
+              >
+                <ChevronLeft className="size-4" />
+              </IconButton>
+              <IconButton
+                className="size-8"
+                disabled={!nextLiveQuestion}
+                label="Next slide"
+                onClick={() => {
+                  if (nextLiveQuestion) {
+                    void handleShowLive(nextLiveQuestion.id)
+                  }
+                }}
+              >
+                <ChevronRight className="size-4" />
+              </IconButton>
+              {selectedQuestion && selectedQuestion.id !== session.current_question_id ? (
+                <Button
                   onClick={() => {
-                    if (previousQuestion) {
-                      void handleSelectQuestion(previousQuestion.id)
-                    }
+                    void handleShowLive(selectedQuestion.id)
                   }}
-                  type="button"
+                  size="sm"
+                  variant="primary"
                 >
-                  <ChevronLeft className="size-4" />
-                  Previous slide
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!nextQuestion}
-                  onClick={() => {
-                    if (nextQuestion) {
-                      void handleSelectQuestion(nextQuestion.id)
-                    }
-                  }}
-                  type="button"
-                >
-                  Next slide
-                  <ChevronRight className="size-4" />
-                </button>
-              </div>
+                  Show this slide
+                </Button>
+              ) : null}
             </div>
-          </div>
+          ) : null}
 
-          <QuestionBigScreenPreview question={selectedQuestion} />
+          <div className="flex min-h-0 flex-1 items-center justify-center" style={{ containerType: 'size' }}>
+            {selectedQuestion ? (
+              <div
+                className="overflow-hidden rounded-2xl shadow-[0_24px_64px_-24px_rgba(28,18,12,0.28)] ring-1 ring-line"
+                style={{ aspectRatio: '16 / 9', width: 'min(100cqw, calc(100cqh * 16 / 9))' }}
+              >
+                <SlideChromeProvider joinCode={session.code}>
+                  <SlideStage className="h-full w-full" theme={presentationTheme}>
+                    <SlideRenderer preview question={selectedQuestion} results={null} />
+                  </SlideStage>
+                </SlideChromeProvider>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-3">Add a slide to get started.</p>
+            )}
+          </div>
         </section>
 
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          {errorMessage ? (
-            <div className="rounded-2xl border border-rose-300/50 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {errorMessage}
-            </div>
-          ) : null}
+        <aside className="min-h-0 overflow-y-auto border-l border-line bg-surface">
+          {selectedQuestion && selectedMeta ? (
+            <>
+              <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                  <selectedMeta.Icon className="size-[18px]" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-[15px] font-semibold">{selectedMeta.title}</h2>
+                  <p className="text-xs text-ink-3">{selectedMeta.description}</p>
+                </div>
+              </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            {saveState === 'saving'
-              ? 'Saving changes…'
-              : saveState === 'saved'
-                ? 'All changes saved to Supabase.'
-                : saveState === 'error'
-                  ? 'The last edit could not be saved.'
-                  : 'Changes save automatically as you edit.'}
-          </div>
+              {errorMessage ? (
+                <p className="mx-5 mt-4 rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
 
-          {selectedQuestion ? (
-            <QuestionPropertiesPanel
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onUpdate={updateSelectedQuestion}
-              question={selectedQuestion}
-            />
+              <QuestionPropertiesPanel onUpdate={updateSelectedQuestion} question={selectedQuestion} />
+            </>
           ) : null}
         </aside>
-      </section>
+      </div>
 
       {shareModalOpen ? (
-        <ShareModal
-          code={editorData.session.code}
-          onClose={() => setShareModalOpen(false)}
-          onError={setErrorMessage}
-        />
+        <ShareModal code={session.code} onClose={() => setShareModalOpen(false)} onError={setErrorMessage} />
       ) : null}
     </main>
   )

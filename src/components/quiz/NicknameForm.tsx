@@ -50,9 +50,9 @@ export default function NicknameForm({ onSubmit, roomName }: NicknameFormProps) 
       }}
     >
       <div className="text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">{roomName}</p>
+        <p className="text-[15px] font-medium text-slide-muted">{roomName}</p>
         <h1 className="mt-3 text-3xl font-semibold">Pick your player name</h1>
-        <p className="mt-2 text-base text-slate-300">It shows on the big screen and the leaderboard.</p>
+        <p className="mt-2 text-base text-slide-muted">It shows on the big screen and the leaderboard.</p>
       </div>
 
       <div className="flex justify-center">
@@ -69,7 +69,7 @@ export default function NicknameForm({ onSubmit, roomName }: NicknameFormProps) 
               aria-label={`Avatar ${candidate}`}
               aria-pressed={candidate === emoji}
               className={`rounded-2xl py-2 text-2xl transition ${
-                candidate === emoji ? 'bg-emerald-400/20 ring-2 ring-emerald-300' : 'bg-white/5 hover:bg-white/10'
+                candidate === emoji ? 'bg-[color-mix(in_srgb,var(--slide-accent)_12%,transparent)] ring-2 ring-slide-accent' : 'bg-slide-subtle'
               }`}
               key={candidate}
               onClick={() => setEmoji(candidate)}
@@ -82,13 +82,13 @@ export default function NicknameForm({ onSubmit, roomName }: NicknameFormProps) 
       </fieldset>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-200" htmlFor="participant-nickname">
+        <label className="block text-sm font-semibold text-slide-fg" htmlFor="participant-nickname">
           Nickname
         </label>
         <div className="flex gap-2">
           <input
             autoComplete="off"
-            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-lg text-white outline-none transition focus:border-emerald-300"
+            className="min-w-0 flex-1 rounded-2xl border-2 border-slide-line bg-slide-bg px-4 py-3 text-lg text-slide-fg outline-none transition focus:border-slide-accent"
             id="participant-nickname"
             maxLength={MAX_NICKNAME_LENGTH}
             onChange={(event) => setNickname(event.target.value)}
@@ -96,7 +96,7 @@ export default function NicknameForm({ onSubmit, roomName }: NicknameFormProps) 
           />
           <button
             aria-label="Shuffle nickname"
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 text-slate-200 transition hover:bg-white/10"
+            className="rounded-2xl border-2 border-slide-line px-4 text-slide-muted transition"
             onClick={handleShuffle}
             type="button"
           >
@@ -106,13 +106,13 @@ export default function NicknameForm({ onSubmit, roomName }: NicknameFormProps) 
       </div>
 
       {errorMessage ? (
-        <p className="rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+        <p className="rounded-2xl bg-[#fdecea] px-4 py-3 text-sm text-[#b42318]">
           {errorMessage}
         </p>
       ) : null}
 
       <button
-        className="w-full rounded-full bg-emerald-400 px-6 py-4 text-lg font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full flex h-14 items-center justify-center rounded-2xl bg-slide-accent px-6 text-[17px] font-semibold text-slide-accent-fg transition disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isSubmitting}
         type="submit"
       >

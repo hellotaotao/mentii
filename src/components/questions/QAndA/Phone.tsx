@@ -1,5 +1,7 @@
+import { Check, ThumbsUp } from 'lucide-react'
 import { useState } from 'react'
 import type { QAndAQuestion, QAndAResults } from '../../../types/questions'
+import { PhoneButton, PhoneNotice, PhoneTextArea } from '../../audience/PhoneUI'
 
 type QAndAPhoneProps = {
   actionEntryId: string | null
@@ -25,112 +27,87 @@ export default function QAndAPhone({
   const [draftQuestion, setDraftQuestion] = useState('')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <form
-        className="space-y-4"
+        className="space-y-3"
         onSubmit={async (event) => {
           event.preventDefault()
 
           const trimmedQuestion = draftQuestion.trim()
-          if (!trimmedQuestion) {
-            return
-          }
 
-          await onSubmit(trimmedQuestion)
-          setDraftQuestion('')
+          if (trimmedQuestion) {
+            await onSubmit(trimmedQuestion)
+            setDraftQuestion('')
+          }
         }}
       >
-        <label className="block space-y-2" htmlFor={`${question.id}-q-and-a-input`}>
-          <span className="text-sm font-medium text-slate-200">Your question</span>
-          <textarea
-            className="min-h-32 w-full rounded-3xl border border-white/10 bg-slate-950 px-5 py-4 text-base text-white outline-none transition focus:border-cyan-300"
-            id={`${question.id}-q-and-a-input`}
-            maxLength={280}
-            onChange={(event) => setDraftQuestion(event.target.value)}
-            placeholder="Ask your question here"
-            value={draftQuestion}
-          />
+        <label className="sr-only" htmlFor={`${question.id}-q-and-a-input`}>
+          Your question
         </label>
-
-        <button
-          className="w-full rounded-3xl bg-cyan-400 px-5 py-4 text-base font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting || draftQuestion.trim().length === 0}
-          type="submit"
-        >
-          Submit question
-        </button>
+        <PhoneTextArea
+          className="min-h-28"
+          id={`${question.id}-q-and-a-input`}
+          maxLength={280}
+          onChange={(event) => setDraftQuestion(event.target.value)}
+          placeholder="Ask a question"
+          value={draftQuestion}
+        />
+        <PhoneButton disabled={isSubmitting || draftQuestion.trim().length === 0} type="submit">
+          Send question
+        </PhoneButton>
+        {successMessage ? <PhoneNotice tone="success">{successMessage}</PhoneNotice> : null}
       </form>
 
-      {successMessage ? (
-        <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-          {successMessage}
-        </div>
-      ) : null}
-
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Live queue</h2>
-          {results ? <span className="text-sm text-slate-400">{`${results.entries.length} questions`}</span> : null}
-        </div>
+        <h2 className="text-[15px] font-semibold">
+          {results && results.entries.length > 0 ? `Questions from the room (${results.entries.length})` : 'Questions from the room'}
+        </h2>
 
         {isLoadingEntries ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-slate-300">
-            Loading audience questions…
-          </div>
+          <PhoneNotice>Loading questions…</PhoneNotice>
         ) : !results || results.entries.length === 0 ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-slate-300">
-            No questions yet. Submit the first one from your phone.
-          </div>
+          <PhoneNotice>No questions yet. Be the first to ask.</PhoneNotice>
         ) : (
-          <div className="space-y-3">
+          <ul className="divide-y divide-slide-line">
             {results.entries.map((entry) => {
-              const buttonLabel = entry.isOwnEntry
-                ? 'Asked by you'
-                : entry.hasUpvoted
-                  ? 'Upvoted'
-                  : 'Upvote'
+              const isDisabled =
+                isSubmitting || actionEntryId === entry.id || entry.isOwnEntry || entry.hasUpvoted
 
               return (
-                <article
-                  className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4"
-                  key={entry.id}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-base leading-7 text-slate-100">{entry.text}</p>
+                <li className={`flex items-start gap-3 py-3 ${entry.answered ? 'opacity-50' : ''}`} key={entry.id}>
+                  <p className="min-w-0 flex-1 pt-1.5 text-[16px] leading-snug">
+                    {entry.text}
                     {entry.answered ? (
-                      <span className="shrink-0 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-emerald-100">
+                      <span className="ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-slide-muted">
+                        <Check className="size-3.5" />
                         Answered
                       </span>
                     ) : null}
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-300">{`${entry.upvoteCount} upvotes`}</span>
-                    <button
-                      aria-label={
-                        entry.isOwnEntry
-                          ? `Asked by you ${entry.text}`
-                          : `${entry.hasUpvoted ? 'Upvoted' : 'Upvote'} ${entry.text}`
-                      }
-                      className="rounded-full border border-white/10 bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={
-                        isSubmitting ||
-                        actionEntryId === entry.id ||
-                        entry.isOwnEntry ||
-                        entry.hasUpvoted
-                      }
-                      onClick={() => {
-                        void onUpvote(entry.id)
-                      }}
-                      type="button"
-                    >
-                      {buttonLabel}
-                    </button>
-                  </div>
-                </article>
+                  </p>
+                  <button
+                    aria-label={
+                      entry.isOwnEntry
+                        ? `Asked by you ${entry.text}`
+                        : `${entry.hasUpvoted ? 'Upvoted' : 'Upvote'} ${entry.text}`
+                    }
+                    className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[14px] font-semibold tabular-nums transition ${
+                      entry.hasUpvoted
+                        ? 'bg-slide-accent text-slide-accent-fg'
+                        : 'border-2 border-slide-line text-slide-fg disabled:text-slide-muted'
+                    }`}
+                    disabled={isDisabled}
+                    onClick={() => {
+                      void onUpvote(entry.id)
+                    }}
+                    type="button"
+                  >
+                    <ThumbsUp aria-hidden="true" className="size-4" />
+                    <span>{entry.upvoteCount}</span>
+                  </button>
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
       </section>
     </div>

@@ -1,113 +1,42 @@
-import {
-  BarChart3,
-  Cloud,
-  FileText,
-  GripVertical,
-  MessageSquare,
-  Medal,
-  Plus,
-  SlidersHorizontal,
-  Trash2,
-  Trophy,
-} from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { getQuestionTypeLabel, type EditorQuestion, type QuestionType } from '../types/questions'
-
-const slideTypeOptions: Array<{
-  actionLabel: string
-  description: string
-  Icon: typeof BarChart3
-  title: string
-  type: QuestionType
-}> = [
-  {
-    actionLabel: 'Add multiple choice slide',
-    description: 'Collect votes with predefined options.',
-    Icon: BarChart3,
-    title: 'Multiple choice',
-    type: 'multiple_choice',
-  },
-  {
-    actionLabel: 'Add scales slide',
-    description: 'Capture sentiment on a 1-5 scale.',
-    Icon: SlidersHorizontal,
-    title: 'Scales',
-    type: 'scales',
-  },
-  {
-    actionLabel: 'Add Q&A slide',
-    description: 'Let the audience submit and upvote questions.',
-    Icon: MessageSquare,
-    title: 'Q&A',
-    type: 'q_and_a',
-  },
-  {
-    actionLabel: 'Add quiz slide',
-    description: 'Run a timed question with a correct answer.',
-    Icon: Trophy,
-    title: 'Quiz',
-    type: 'quiz',
-  },
-  {
-    actionLabel: 'Add leaderboard slide',
-    description: 'Show cumulative quiz scores or a final podium.',
-    Icon: Medal,
-    title: 'Leaderboard',
-    type: 'leaderboard',
-  },
-  {
-    actionLabel: 'Add open ended slide',
-    description: 'Collect free-text responses from everyone.',
-    Icon: FileText,
-    title: 'Open ended',
-    type: 'open_ended',
-  },
-  {
-    actionLabel: 'Add word cloud slide',
-    description: 'Visualize frequent words from the room.',
-    Icon: Cloud,
-    title: 'Word cloud',
-    type: 'word_cloud',
-  },
-]
+import type { PresentationTheme } from '../lib/presentationTheme'
+import type { EditorQuestion, QuestionType } from '../types/questions'
+import SlideRenderer from './slides/SlideRenderer'
+import SlideStage from './slides/SlideStage'
+import { getSlideTypeMeta, SLIDE_TYPES } from './slides/slideTypes'
 
 type SlideListProps = {
+  liveQuestionId?: string | null
   onAddSlide: (type: QuestionType) => void
   onDelete: (questionId: string) => void
   onReorder: (orderedQuestionIds: string[]) => void
   onSelect: (questionId: string) => void
   questions: EditorQuestion[]
   selectedQuestionId: string | null
+  theme?: PresentationTheme
 }
 
-export default function SlideList({
-  onAddSlide,
-  onDelete,
-  onReorder,
-  onSelect,
-  questions,
-  selectedQuestionId,
-}: SlideListProps) {
-  const addMenuRef = useRef<HTMLDivElement | null>(null)
-  const [draggedQuestionId, setDraggedQuestionId] = useState<string | null>(null)
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+const SLIDE_TYPE_GROUPS = ['Questions', 'Quiz competition'] as const
+
+function AddSlideMenu({ onAddSlide }: { onAddSlide: (type: QuestionType) => void }) {
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
     function handlePointerDown(event: PointerEvent) {
-      if (!isAddMenuOpen) {
-        return
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false)
       }
-
-      if (addMenuRef.current?.contains(event.target as Node)) {
-        return
-      }
-
-      setIsAddMenuOpen(false)
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setIsAddMenuOpen(false)
+        setIsOpen(false)
       }
     }
 
@@ -118,9 +47,73 @@ export default function SlideList({
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [isAddMenuOpen])
+  }, [isOpen])
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-label="Add slide"
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-full bg-brand text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <Plus className="size-4" />
+        New slide
+      </button>
+
+      {isOpen ? (
+        <div className="mentii-slide-down absolute left-0 top-12 z-30 w-[300px] rounded-2xl border border-line bg-surface p-2 shadow-[0_16px_48px_rgba(28,18,12,0.14)]">
+          {SLIDE_TYPE_GROUPS.map((group) => (
+            <div className="py-1" key={group}>
+              <p className="px-3 pb-1 pt-2 text-xs font-semibold text-ink-3">{group}</p>
+              <ul>
+                {SLIDE_TYPES.filter((meta) => meta.group === group).map((meta) => (
+                  <li key={meta.type}>
+                    <button
+                      aria-label={`Add ${meta.title.toLowerCase()} slide`}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-sunken"
+                      onClick={() => {
+                        onAddSlide(meta.type)
+                        setIsOpen(false)
+                      }}
+                      type="button"
+                    >
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                        <meta.Icon className="size-[18px]" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-ink">{meta.title}</span>
+                        <span className="block text-xs text-ink-3">{meta.description}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export default function SlideList({
+  liveQuestionId = null,
+  onAddSlide,
+  onDelete,
+  onReorder,
+  onSelect,
+  questions,
+  selectedQuestionId,
+  theme = 'light',
+}: SlideListProps) {
+  const [draggedQuestionId, setDraggedQuestionId] = useState<string | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
 
   function handleDrop(targetQuestionId: string) {
+    setDropTargetId(null)
+
     if (!draggedQuestionId || draggedQuestionId === targetQuestionId) {
       setDraggedQuestionId(null)
       return
@@ -143,99 +136,70 @@ export default function SlideList({
   }
 
   return (
-    <aside className="flex min-h-[640px] flex-col rounded-3xl border border-slate-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">Slides</p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-900">Question flow</h2>
-        </div>
-
-        <div className="relative" ref={addMenuRef}>
-          <button
-            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            onClick={() => setIsAddMenuOpen((currentState) => !currentState)}
-            type="button"
-          >
-            <Plus className="size-4" />
-            Add slide
-          </button>
-
-          {isAddMenuOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-              <ul className="space-y-1">
-                {slideTypeOptions.map((option) => (
-                  <li key={option.type}>
-                    <button
-                      aria-label={option.actionLabel}
-                      className="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
-                      onClick={() => {
-                        onAddSlide(option.type)
-                        setIsAddMenuOpen(false)
-                      }}
-                      type="button"
-                    >
-                      <span className="mt-1 rounded-lg border border-slate-200 bg-slate-100 p-2 text-slate-500">
-                        <option.Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
-                        <span className="mt-1 block text-xs text-slate-500">{option.description}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
+    <aside className="flex h-full min-h-0 flex-col bg-surface">
+      <div className="p-4">
+        <AddSlideMenu onAddSlide={onAddSlide} />
       </div>
 
-      <ol className="mt-6 flex-1 space-y-3">
+      <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-6">
         {questions.map((question, index) => {
           const isSelected = question.id === selectedQuestionId
+          const meta = getSlideTypeMeta(question.type)
 
           return (
             <li
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm"
+              className={`group relative flex gap-2 rounded-xl p-1.5 transition ${
+                dropTargetId === question.id && draggedQuestionId !== question.id ? 'bg-brand-soft' : ''
+              } ${draggedQuestionId === question.id ? 'opacity-40' : ''}`}
               draggable
               key={question.id}
-              onDragEnd={() => setDraggedQuestionId(null)}
-              onDragOver={(event) => event.preventDefault()}
+              onDragEnd={() => {
+                setDraggedQuestionId(null)
+                setDropTargetId(null)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDropTargetId(question.id)
+              }}
               onDragStart={() => setDraggedQuestionId(question.id)}
               onDrop={() => handleDrop(question.id)}
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-1 rounded-full border border-slate-200 bg-white p-2 text-slate-500">
-                  <GripVertical className="size-4" />
-                </div>
+              <span className="w-5 pt-1 text-right text-xs font-semibold tabular-nums text-ink-3">{index + 1}</span>
 
-                <div className="min-w-0 flex-1">
-                  <button
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? 'border-cyan-300 bg-cyan-50 text-slate-900'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
-                    onClick={() => onSelect(question.id)}
-                    type="button"
-                  >
-                    <span className="block text-xs uppercase tracking-[0.25em] text-slate-500">
-                      {getQuestionTypeLabel(question.type)}
-                    </span>
-                    <span className="mt-2 block truncate text-sm font-semibold">
-                      {`Slide ${index + 1}: ${question.title}`}
-                    </span>
-                  </button>
-                </div>
+              <div className="relative min-w-0 flex-1">
+                <button
+                  aria-current={isSelected ? 'true' : undefined}
+                  aria-label={`Slide ${index + 1}: ${question.title}`}
+                  className={`block w-full overflow-hidden rounded-lg text-left ring-offset-2 ring-offset-surface transition focus-visible:outline-none ${
+                    isSelected ? 'ring-2 ring-brand' : 'ring-1 ring-line hover:ring-line-strong'
+                  }`}
+                  onClick={() => onSelect(question.id)}
+                  type="button"
+                >
+                  <SlideStage ariaHidden className="pointer-events-none aspect-video w-full" theme={theme}>
+                    <SlideRenderer preview question={question} results={null} />
+                  </SlideStage>
+                </button>
+
+                <span className="pointer-events-none absolute bottom-1.5 left-1.5 flex size-5 items-center justify-center rounded-md bg-surface/95 text-ink-2 shadow-sm ring-1 ring-line">
+                  <meta.Icon aria-hidden="true" className="size-3" />
+                </span>
+
+                {question.id === liveQuestionId ? (
+                  <span className="pointer-events-none absolute right-1.5 top-1.5 rounded-full bg-live px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    Live
+                  </span>
+                ) : null}
 
                 <button
                   aria-label={`Delete slide ${index + 1}`}
-                  className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-rose-300 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="absolute bottom-1.5 right-1.5 flex size-6 items-center justify-center rounded-md bg-surface/95 text-ink-3 opacity-0 shadow-sm ring-1 ring-line transition hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 disabled:hidden"
                   disabled={questions.length === 1}
                   onClick={() => onDelete(question.id)}
+                  title="Delete slide"
                   type="button"
                 >
-                  <Trash2 className="size-4" />
+                  <Trash2 className="size-3.5" />
                 </button>
               </div>
             </li>

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import VotePage from './VotePage'
@@ -312,11 +312,8 @@ describe('VotePage', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /velocity/i,
-      }),
-    )
+    fireEvent.click(screen.getByRole('radio', { name: /velocity/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => expect(mockSubmitMultipleChoiceVote).toHaveBeenCalledWith('question-1', 0))
     expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
@@ -376,11 +373,8 @@ describe('VotePage', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /velocity/i,
-      }),
-    )
+    fireEvent.click(screen.getByRole('radio', { name: /velocity/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => expect(mockSubmitMultipleChoiceVote).toHaveBeenCalledWith('question-1', 0))
     expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
@@ -392,11 +386,7 @@ describe('VotePage', () => {
       })
     })
 
-    expect(
-      await screen.findByRole('button', {
-        name: /velocity/i,
-      }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: /velocity/i })).toBeInTheDocument()
   })
 
   it('submits word-cloud responses without locking the participant out', async () => {
@@ -419,10 +409,10 @@ describe('VotePage', () => {
     fireEvent.change(screen.getByLabelText(/your word/i), {
       target: { value: 'productive' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /submit word/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => expect(mockSubmitWordCloudVote).toHaveBeenCalledWith('question-3', 'productive'))
-    expect(screen.getByText(/thanks for sharing/i)).toBeInTheDocument()
+    expect(screen.getByText(/added to the cloud/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/your word/i)).toHaveValue('')
   })
 
@@ -446,7 +436,7 @@ describe('VotePage', () => {
     fireEvent.change(screen.getByLabelText(/your word/i), {
       target: { value: 'productive' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /submit word/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => expect(mockSubmitWordCloudVote).toHaveBeenCalledWith('question-3', 'productive'))
     expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
@@ -473,7 +463,7 @@ describe('VotePage', () => {
     fireEvent.change(screen.getByLabelText(/your response/i), {
       target: { value: 'Clearer sprint goals' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /submit response/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() =>
       expect(mockSubmitOpenEndedVote).toHaveBeenCalledWith('question-4', 'Clearer sprint goals'),
@@ -498,11 +488,8 @@ describe('VotePage', () => {
       }),
     ).toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /rate 4 out of 5/i,
-      }),
-    )
+    fireEvent.click(screen.getByRole('radio', { name: /rate 4 out of 5/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => expect(mockSubmitScalesVote).toHaveBeenCalledWith('question-5', 4))
     expect(screen.getByText(/thanks for voting/i)).toBeInTheDocument()
@@ -529,7 +516,7 @@ describe('VotePage', () => {
     fireEvent.change(screen.getByLabelText(/your question/i), {
       target: { value: 'What is our rollback plan?' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /submit question/i }))
+    fireEvent.click(screen.getByRole('button', { name: /send question/i }))
 
     await waitFor(() =>
       expect(mockSubmitQAndAEntry).toHaveBeenCalledWith('question-6', 'What is our rollback plan?'),
@@ -595,13 +582,17 @@ describe('VotePage', () => {
       refreshRequest.resolve(updatedQAndAResults)
     })
 
-    await screen.findByText('4 upvotes')
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('button', { name: /how do we measure launch success/i })).getByText('4'),
+      ).toBeInTheDocument(),
+    )
 
     await act(async () => {
       initialRequest.resolve(qAndAResults)
     })
 
-    await waitFor(() => expect(screen.getByText('4 upvotes')).toBeInTheDocument())
+    expect(within(screen.getByRole('button', { name: /how do we measure launch success/i })).getByText('4')).toBeInTheDocument()
   })
 
   it('asks for a nickname before joining a quiz room', async () => {
