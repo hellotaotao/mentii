@@ -81,31 +81,46 @@ export default function QuizBigScreen({
           {results.totals.map((total) => {
             const answerStyle = getQuizAnswerStyle(total.optionIdx)
             const isCorrect = total.optionIdx === correctOptionIdx
+            const share = maxCount === 0 ? 0 : total.count / maxCount
 
             return (
               <article
-                className={`relative flex flex-col justify-center overflow-hidden rounded-3xl px-8 text-white transition duration-500 ${
-                  answerStyle.tileClassName
-                } ${isAnswering ? 'h-[120px]' : 'h-[104px]'} ${!isAnswering && !isCorrect ? 'opacity-30 saturate-50' : ''}`}
+                className={`relative flex items-center gap-6 overflow-hidden rounded-3xl px-6 transition duration-500 ${
+                  isAnswering ? 'h-[120px] bg-slide-subtle' : 'h-[104px]'
+                } ${!isAnswering && !isCorrect ? 'bg-slide-subtle opacity-40' : ''}`}
                 key={`${question.id}-quiz-total-${total.optionIdx}`}
+                style={
+                  !isAnswering && isCorrect
+                    ? {
+                        backgroundColor: `color-mix(in srgb, ${answerStyle.color} 14%, var(--slide-bg))`,
+                        boxShadow: `inset 0 0 0 3px ${answerStyle.color}`,
+                      }
+                    : undefined
+                }
               >
-                <div className="flex items-center gap-5">
-                  <span className="text-[34px]" aria-hidden="true">
-                    {answerStyle.shape}
-                  </span>
-                  <p className="min-w-0 flex-1 truncate text-[32px] font-semibold">{total.label}</p>
-                  {!isAnswering ? (
-                    <span className="flex items-center gap-3 text-[34px] font-bold tabular-nums">
-                      {isCorrect ? <span aria-label="Correct answer">✓</span> : null}
-                      {total.count}
-                    </span>
-                  ) : null}
-                </div>
+                <span
+                  aria-hidden="true"
+                  className="flex size-16 shrink-0 items-center justify-center rounded-2xl text-[28px] text-white"
+                  style={{ backgroundColor: answerStyle.color }}
+                >
+                  {answerStyle.shape}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-[32px] font-semibold">{total.label}</p>
                 {!isAnswering ? (
-                  <div className="absolute inset-x-0 bottom-0 h-2 bg-black/15">
+                  <span className="flex items-center gap-3 text-[32px] font-bold tabular-nums">
+                    {isCorrect ? (
+                      <span aria-label="Correct answer" style={{ color: answerStyle.color }}>
+                        ✓
+                      </span>
+                    ) : null}
+                    {total.count}
+                  </span>
+                ) : null}
+                {!isAnswering ? (
+                  <div className="absolute inset-x-0 bottom-0 h-1.5">
                     <div
-                      className="h-full bg-white/80 transition-[width] duration-700"
-                      style={{ width: maxCount === 0 ? '0%' : `${(total.count / maxCount) * 100}%` }}
+                      className="h-full transition-[width] duration-700"
+                      style={{ backgroundColor: answerStyle.color, width: `${share * 100}%` }}
                     />
                   </div>
                 ) : null}

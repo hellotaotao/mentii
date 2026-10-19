@@ -104,7 +104,8 @@ export default function QuizPhone({
       <div className="py-6 text-center">
         {lockedStyle && lockedIdx !== null ? (
           <div
-            className={`mentii-pop-in mx-auto flex size-28 items-center justify-center rounded-3xl text-5xl text-white ${lockedStyle.tileClassName}`}
+            className="mentii-pop-in mx-auto flex size-24 items-center justify-center rounded-3xl text-4xl text-white"
+            style={{ backgroundColor: lockedStyle.color }}
           >
             {lockedStyle.shape}
           </div>
@@ -143,13 +144,17 @@ export default function QuizPhone({
 
           return (
             <button
-              className={`flex min-h-16 w-full items-center gap-4 rounded-3xl px-5 py-4 text-left text-lg font-semibold text-white shadow-lg transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${answerStyle.tileClassName}`}
+              className="flex min-h-16 w-full items-center gap-4 rounded-2xl border-2 border-slide-line px-3 py-3 text-left text-[17px] font-semibold transition active:scale-[0.98] active:border-slide-accent disabled:opacity-50"
               disabled={isSubmitting}
               key={`${question.id}-quiz-phone-option-${optionIdx}`}
               onClick={() => onVote(optionIdx)}
               type="button"
             >
-              <span className="text-2xl" aria-hidden="true">
+              <span
+                aria-hidden="true"
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl text-lg text-white"
+                style={{ backgroundColor: answerStyle.color }}
+              >
                 {answerStyle.shape}
               </span>
               <span>{option}</span>

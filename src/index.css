@@ -42,19 +42,20 @@
 }
 
 .slide-theme-dark {
-  --slide-bg: #161210;
-  --slide-fg: #fbf7f3;
-  --slide-muted: #a8988c;
-  --slide-subtle: rgba(255, 255, 255, 0.06);
-  --slide-line: rgba(255, 255, 255, 0.12);
+  /* Midnight: deep blue rather than black, so orange reads as a complement. */
+  --slide-bg: #1d2136;
+  --slide-fg: #f5f3ef;
+  --slide-muted: #a3a8c0;
+  --slide-subtle: rgba(255, 255, 255, 0.07);
+  --slide-line: rgba(255, 255, 255, 0.14);
   --slide-accent: #ff6a33;
   --slide-accent-fg: #ffffff;
   --slide-c1: #ff6a33;
-  --slide-c2: #8b7bff;
-  --slide-c3: #3cc4e0;
-  --slide-c4: #3ccf7e;
-  --slide-c5: #ffc23d;
-  --slide-c6: #ff6f9f;
+  --slide-c2: #9d8cff;
+  --slide-c3: #45c6e3;
+  --slide-c4: #47d18a;
+  --slide-c5: #ffc94d;
+  --slide-c6: #ff7aa8;
 }
 
 @theme inline {

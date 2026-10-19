@@ -40,7 +40,8 @@ export default function QuizEditor({
 
           return (
             <span
-              className={`flex size-6 items-center justify-center rounded-md text-[11px] text-white ${answerStyle.tileClassName}`}
+              className="flex size-6 items-center justify-center rounded-md text-[11px] text-white"
+              style={{ backgroundColor: answerStyle.lightColor }}
             >
               {answerStyle.shape}
             </span>
